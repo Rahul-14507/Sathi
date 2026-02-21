@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, PlusCircle, Users } from "lucide-react";
+import { toast } from "sonner";
 
 export default function ManagementDashboard() {
   const router = useRouter();
@@ -59,7 +60,7 @@ export default function ManagementDashboard() {
       });
 
       if (res.ok) {
-        alert(`Successfully created Section ${sectionName}!`);
+        toast.success(`Successfully created Section ${sectionName}!`);
         setSectionId("");
         setSectionName("");
         setCrId("");
@@ -67,11 +68,11 @@ export default function ManagementDashboard() {
         fetchSections();
       } else {
         const err = await res.json();
-        alert(`Error: ${err.error || "Failed to create section"}`);
+        toast.error(`Error: ${err.error || "Failed to create section"}`);
       }
     } catch (error) {
       console.error(error);
-      alert("Network error.");
+      toast.error("Network error.");
     } finally {
       setIsLoading(false);
     }
@@ -102,18 +103,18 @@ export default function ManagementDashboard() {
       });
 
       if (res.ok) {
-        alert(`Successfully updated Section ${targetSectionId}!`);
+        toast.success(`Successfully updated Section ${targetSectionId}!`);
         setEditingSectionId(null);
         setEditCrId("");
         setEditStudentEmails("");
         fetchSections();
       } else {
         const err = await res.json();
-        alert(`Error: ${err.error || "Failed to update section"}`);
+        toast.error(`Error: ${err.error || "Failed to update section"}`);
       }
     } catch (error) {
       console.error(error);
-      alert("Network error.");
+      toast.error("Network error.");
     } finally {
       setIsLoading(false);
     }

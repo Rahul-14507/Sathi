@@ -35,6 +35,16 @@ import {
   ExternalLink,
   Settings,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function StudentDashboard() {
   const router = useRouter();
@@ -84,6 +94,9 @@ export default function StudentDashboard() {
   const [profileName, setProfileName] = useState("");
   const [profileSecondaryEmail, setProfileSecondaryEmail] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<any>(null);
+  const [deleteConfirmPost, setDeleteConfirmPost] = useState<any>(null);
 
   // Setup minute-tick clock for Time-Aware logic
   useEffect(() => {
@@ -264,16 +277,24 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleDeleteTask = async (task: any) => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
+  const executeDeleteTask = async () => {
+    if (!deleteConfirmTask) return;
+    const task = deleteConfirmTask;
+    setDeleteConfirmTask(null);
     try {
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
       await fetch(`/api/tasks?id=${task.id}&userId=${task.userId}`, {
         method: "DELETE",
       });
+      toast.success("Task deleted.");
     } catch (err) {
       console.error(err);
+      toast.error("Failed to delete task.");
     }
+  };
+
+  const handleDeleteTask = (task: any) => {
+    setDeleteConfirmTask(task);
   };
 
   const startEdit = (task: any) => {
@@ -421,8 +442,10 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleDeleteCommunityPost = async (post: any) => {
-    if (!confirm("Are you sure you want to delete this post?")) return;
+  const executeDeleteCommunityPost = async () => {
+    if (!deleteConfirmPost) return;
+    const post = deleteConfirmPost;
+    setDeleteConfirmPost(null);
     try {
       setCommunityPosts((prev) => prev.filter((p) => p.id !== post.id));
       await fetch(
@@ -431,11 +454,15 @@ export default function StudentDashboard() {
           method: "DELETE",
         },
       );
-      toast.success("Post deleted.");
+      toast.success("Discussion post deleted.");
     } catch (err) {
       console.error(err);
       toast.error("Failed to delete post.");
     }
+  };
+
+  const handleDeleteCommunityPost = (post: any) => {
+    setDeleteConfirmPost(post);
   };
 
   const startEditCommunityPost = (post: any) => {
@@ -892,477 +919,546 @@ export default function StudentDashboard() {
     );
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 text-slate-100 p-4 md:p-8 dark">
-      <div className="max-w-5xl mx-auto space-y-8">
-        <div className="flex justify-between items-end pb-6 border-b border-white/10">
-          <div className="flex items-center gap-4">
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="h-12 w-12 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-bold text-white shadow-lg hover:scale-105 transition-transform border-2 border-indigo-400">
-                  {(profileName || userId || "S")[0].toUpperCase()}
-                </button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-slate-900 border border-indigo-500/20 text-slate-100">
-                <DialogHeader>
-                  <DialogTitle className="text-xl flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-indigo-400" /> Profile
-                    Settings
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleUpdateProfile} className="space-y-6 mt-4">
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-slate-300 text-sm font-semibold mb-2 block">
-                        Domain Email (Primary)
-                      </Label>
-                      <Input
-                        disabled
-                        value={userId || ""}
-                        className="bg-black/30 border-white/10 text-slate-500 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-slate-500 mt-2">
-                        Your primary domain email cannot be changed.
-                      </p>
+    <>
+      <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 text-slate-100 p-4 md:p-8 dark">
+        <div className="max-w-5xl mx-auto space-y-8">
+          <div className="flex justify-between items-end pb-6 border-b border-white/10">
+            <div className="flex items-center gap-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="h-12 w-12 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-bold text-white shadow-lg hover:scale-105 transition-transform border-2 border-indigo-400">
+                    {(profileName || userId || "S")[0].toUpperCase()}
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px] bg-slate-900 border border-indigo-500/20 text-slate-100">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-indigo-400" /> Profile
+                      Settings
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form
+                    onSubmit={handleUpdateProfile}
+                    className="space-y-6 mt-4"
+                  >
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-slate-300 text-sm font-semibold mb-2 block">
+                          Domain Email (Primary)
+                        </Label>
+                        <Input
+                          disabled
+                          value={userId || ""}
+                          className="bg-black/30 border-white/10 text-slate-500 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-slate-500 mt-2">
+                          Your primary domain email cannot be changed.
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-slate-300 text-sm font-semibold mb-2 block">
+                          Full Name
+                        </Label>
+                        <Input
+                          required
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          placeholder="e.g. John Doe"
+                          className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-slate-300 text-sm font-semibold mb-2 block">
+                          Secondary Email (Alerts)
+                        </Label>
+                        <Input
+                          type="email"
+                          value={profileSecondaryEmail}
+                          onChange={(e) =>
+                            setProfileSecondaryEmail(e.target.value)
+                          }
+                          placeholder="e.g. personal@gmail.com"
+                          className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-slate-300 text-sm font-semibold mb-2 block">
-                        Full Name
-                      </Label>
+                    <Button
+                      type="submit"
+                      disabled={isUpdatingProfile}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white w-full"
+                    >
+                      {isUpdatingProfile
+                        ? "Saving Changes..."
+                        : "Save Preferences"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              <div>
+                <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
+                  Welcome back, {profileName || userId?.split("@")[0]}
+                </h1>
+                <p className="text-slate-400 mt-1">
+                  Manage your academic and personal workload intelligently.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/")}
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              Sign Out
+            </Button>
+          </div>
+
+          <Tabs
+            defaultValue="tasks"
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <TabsList className="grid w-full sm:w-[800px] grid-cols-4 bg-white/5 border border-white/10 p-1 rounded-xl mx-auto mb-8">
+              <TabsTrigger
+                value="tasks"
+                className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
+              >
+                My Tasks
+              </TabsTrigger>
+              <TabsTrigger
+                value="discussion"
+                className="rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
+              >
+                Discussion
+              </TabsTrigger>
+              <TabsTrigger
+                value="events"
+                className="rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
+              >
+                Events
+              </TabsTrigger>
+              <TabsTrigger
+                value="upskill"
+                className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis"
+              >
+                Resources
+              </TabsTrigger>
+            </TabsList>
+
+            {activeTab !== "tasks" && (
+              <div className="mb-8 relative max-w-2xl mx-auto">
+                <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
+                <Input
+                  placeholder={`Search ${activeTab}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-12 bg-black/40 border-white/20 text-white h-12 rounded-xl focus-visible:ring-indigo-500 placeholder:text-slate-500"
+                />
+              </div>
+            )}
+
+            {/* MAIN TASKS TAB WITH TIME-AWARE DASHBOARD VIEWER */}
+            <TabsContent
+              value="tasks"
+              className="space-y-8 animate-in fade-in duration-500"
+            >
+              {isClassHours && (
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+                  <h2 className="text-xl font-bold text-indigo-400 mb-4 flex items-center gap-2">
+                    <Clock className="w-5 h-5" /> Today's Timetable (Live)
+                  </h2>
+                  <div className="space-y-3">
+                    {mockTimetable.map((slot, i) => (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center p-4 rounded-2xl bg-black/20 border border-white/5 hover:bg-black/40 transition-colors"
+                      >
+                        <span className="font-semibold text-slate-200">
+                          {slot.time}
+                        </span>
+                        <span className="text-slate-300 font-medium">
+                          {slot.subject}
+                        </span>
+                        <span className="text-indigo-300 text-sm font-mono bg-indigo-500/10 px-3 py-1 rounded-md border border-indigo-500/20">
+                          {slot.room}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-indigo-100">
+                  <PlusCircle className="w-5 h-5 text-indigo-400" /> Quick Add
+                  Task
+                </h2>
+                <form
+                  onSubmit={handlePostPersonalTask}
+                  className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
+                >
+                  <div className="space-y-2 md:col-span-1">
+                    <Label className="text-slate-300">Title</Label>
+                    <Input
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label className="text-slate-300">
+                      Desc <span className="text-slate-500 text-xs">(opt)</span>
+                    </Label>
+                    <Input
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label className="text-slate-300">Deadline</Label>
+                    <Input
+                      required
+                      type="datetime-local"
+                      value={deadline}
+                      onChange={(e) => setDeadline(e.target.value)}
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500 [color-scheme:dark]"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label className="text-slate-300">Priority</Label>
+                    <select
+                      value={priority}
+                      onChange={(e) => setPriority(e.target.value)}
+                      className="w-full bg-black/30 border border-white/20 text-slate-100 focus-visible:ring-indigo-500 h-10 rounded-md px-3 outline-none"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={posting}
+                    className="md:col-span-1 bg-indigo-600 hover:bg-indigo-500 h-10 w-full text-white font-medium shadow-[0_0_15px_rgba(79,70,229,0.2)]"
+                  >
+                    {posting ? "Adding..." : "Add"}
+                  </Button>
+                </form>
+              </div>
+
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full sm:w-[600px] grid-cols-3 bg-white/5 border border-white/10 p-1 rounded-xl">
+                  <TabsTrigger
+                    value="all"
+                    className="rounded-lg data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+                  >
+                    All Workload
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="academic"
+                    className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+                  >
+                    Academic
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="personal"
+                    className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+                  >
+                    Personal
+                  </TabsTrigger>
+                </TabsList>
+
+                {["all", "academic", "personal"].map((type) => {
+                  const currentList =
+                    type === "academic"
+                      ? academicTasks
+                      : type === "personal"
+                        ? personalTasks
+                        : allTasks;
+
+                  const { upcoming, dueToday, overdue, completed } =
+                    categorizeTasks(currentList);
+
+                  return (
+                    <TabsContent
+                      key={type}
+                      value={type}
+                      className="mt-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                    >
+                      {overdue.length > 0 && (
+                        <section>
+                          <h2 className="text-xl font-bold text-red-400 flex items-center gap-2 mb-4">
+                            <AlertCircle className="w-5 h-5" /> Overdue
+                          </h2>
+                          {renderTaskList(overdue, "No overdue tasks.", true)}
+                        </section>
+                      )}
+                      {dueToday.length > 0 && (
+                        <section>
+                          <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-4">
+                            <Calendar className="w-5 h-5" /> Due Today
+                          </h2>
+                          {renderTaskList(dueToday, "You're clear for today!")}
+                        </section>
+                      )}
+                      <section>
+                        <h2 className="text-xl font-bold text-slate-300 flex items-center gap-2 mb-4">
+                          <Clock className="w-5 h-5" /> Upcoming
+                        </h2>
+                        {renderTaskList(upcoming, "Nothing on the horizon.")}
+                      </section>
+                      {completed.length > 0 && (
+                        <section>
+                          <h2 className="text-xl font-bold text-emerald-500/70 flex items-center gap-2 mb-4">
+                            <CheckCircle2 className="w-5 h-5" /> Completed
+                          </h2>
+                          {renderTaskList(
+                            completed,
+                            "No completed tasks.",
+                            false,
+                            true,
+                          )}
+                        </section>
+                      )}
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
+            </TabsContent>
+
+            {/* DISCUSSION DISCOVERY TAB */}
+            <TabsContent
+              value="discussion"
+              className="space-y-8 animate-in fade-in duration-500"
+            >
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-purple-400">
+                  <MessageSquare className="w-5 h-5 text-purple-400" /> Start a
+                  Discussion
+                </h2>
+                <form
+                  onSubmit={handleCreateCommunityPost}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Topic Title</Label>
                       <Input
                         required
-                        value={profileName}
-                        onChange={(e) => setProfileName(e.target.value)}
-                        placeholder="e.g. John Doe"
-                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        placeholder="e.g. Help with Chapter 4 algorithms?"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-purple-500"
                       />
                     </div>
-                    <div>
-                      <Label className="text-slate-300 text-sm font-semibold mb-2 block">
-                        Secondary Email (Alerts)
-                      </Label>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Description</Label>
                       <Input
-                        type="email"
-                        value={profileSecondaryEmail}
-                        onChange={(e) =>
-                          setProfileSecondaryEmail(e.target.value)
-                        }
-                        placeholder="e.g. personal@gmail.com"
-                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                        required
+                        value={postContent}
+                        onChange={(e) => setPostContent(e.target.value)}
+                        placeholder="Share your thoughts or ask a question..."
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-purple-500"
                       />
                     </div>
                   </div>
                   <Button
                     type="submit"
-                    disabled={isUpdatingProfile}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white w-full"
+                    disabled={isPostingCommunity}
+                    className="bg-purple-600 hover:bg-purple-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(147,51,234,0.2)]"
                   >
-                    {isUpdatingProfile
-                      ? "Saving Changes..."
-                      : "Save Preferences"}
+                    {isPostingCommunity ? "Posting..." : "Post Discussion"}
                   </Button>
                 </form>
-              </DialogContent>
-            </Dialog>
-
-            <div>
-              <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-                Welcome back, {profileName || userId?.split("@")[0]}
-              </h1>
-              <p className="text-slate-400 mt-1">
-                Manage your academic and personal workload intelligently.
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => router.push("/")}
-            className="border-white/20 text-white hover:bg-white/10"
-          >
-            Sign Out
-          </Button>
-        </div>
-
-        <Tabs
-          defaultValue="tasks"
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="w-full"
-        >
-          <TabsList className="grid w-full sm:w-[800px] grid-cols-4 bg-white/5 border border-white/10 p-1 rounded-xl mx-auto mb-8">
-            <TabsTrigger
-              value="tasks"
-              className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
-            >
-              My Tasks
-            </TabsTrigger>
-            <TabsTrigger
-              value="discussion"
-              className="rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
-            >
-              Discussion
-            </TabsTrigger>
-            <TabsTrigger
-              value="events"
-              className="rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
-            >
-              Events
-            </TabsTrigger>
-            <TabsTrigger
-              value="upskill"
-              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis"
-            >
-              Resources
-            </TabsTrigger>
-          </TabsList>
-
-          {activeTab !== "tasks" && (
-            <div className="mb-8 relative max-w-2xl mx-auto">
-              <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
-              <Input
-                placeholder={`Search ${activeTab}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 bg-black/40 border-white/20 text-white h-12 rounded-xl focus-visible:ring-indigo-500 placeholder:text-slate-500"
-              />
-            </div>
-          )}
-
-          {/* MAIN TASKS TAB WITH TIME-AWARE DASHBOARD VIEWER */}
-          <TabsContent
-            value="tasks"
-            className="space-y-8 animate-in fade-in duration-500"
-          >
-            {isClassHours && (
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
-                <h2 className="text-xl font-bold text-indigo-400 mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5" /> Today's Timetable (Live)
-                </h2>
-                <div className="space-y-3">
-                  {mockTimetable.map((slot, i) => (
-                    <div
-                      key={i}
-                      className="flex justify-between items-center p-4 rounded-2xl bg-black/20 border border-white/5 hover:bg-black/40 transition-colors"
-                    >
-                      <span className="font-semibold text-slate-200">
-                        {slot.time}
-                      </span>
-                      <span className="text-slate-300 font-medium">
-                        {slot.subject}
-                      </span>
-                      <span className="text-indigo-300 text-sm font-mono bg-indigo-500/10 px-3 py-1 rounded-md border border-indigo-500/20">
-                        {slot.room}
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </div>
-            )}
 
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-indigo-100">
-                <PlusCircle className="w-5 h-5 text-indigo-400" /> Quick Add
-                Task
-              </h2>
-              <form
-                onSubmit={handlePostPersonalTask}
-                className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
-              >
-                <div className="space-y-2 md:col-span-1">
-                  <Label className="text-slate-300">Title</Label>
-                  <Input
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-1">
-                  <Label className="text-slate-300">
-                    Desc <span className="text-slate-500 text-xs">(opt)</span>
-                  </Label>
-                  <Input
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-1">
-                  <Label className="text-slate-300">Deadline</Label>
-                  <Input
-                    required
-                    type="datetime-local"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500 [color-scheme:dark]"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-1">
-                  <Label className="text-slate-300">Priority</Label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className="w-full bg-black/30 border border-white/20 text-slate-100 focus-visible:ring-indigo-500 h-10 rounded-md px-3 outline-none"
+              {renderCommunityList()}
+            </TabsContent>
+
+            {/* EVENTS HUB TAB */}
+            <TabsContent
+              value="events"
+              className="space-y-6 animate-in fade-in duration-500"
+            >
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-emerald-400">
+                  <Presentation className="w-5 h-5 text-emerald-400" /> Post a
+                  Campus Event or Hackathon
+                </h2>
+                <form
+                  onSubmit={handleCreateCommunityPost}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Event Name</Label>
+                      <Input
+                        required
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        placeholder="e.g. Spring AI Hackathon"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">
+                        Details (Time & Location)
+                      </Label>
+                      <Input
+                        required
+                        value={postContent}
+                        onChange={(e) => setPostContent(e.target.value)}
+                        placeholder="e.g. March 10th at Main Auditorium"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">
+                        Registration Link{" "}
+                        <span className="text-xs text-slate-500">(opt)</span>
+                      </Label>
+                      <Input
+                        value={postLink}
+                        onChange={(e) => setPostLink(e.target.value)}
+                        placeholder="https://..."
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isPostingCommunity}
+                    className="bg-emerald-600 hover:bg-emerald-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(16,185,129,0.2)]"
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={posting}
-                  className="md:col-span-1 bg-indigo-600 hover:bg-indigo-500 h-10 w-full text-white font-medium shadow-[0_0_15px_rgba(79,70,229,0.2)]"
-                >
-                  {posting ? "Adding..." : "Add"}
-                </Button>
-              </form>
-            </div>
+                    {isPostingCommunity ? "Posting..." : "Share Event"}
+                  </Button>
+                </form>
+              </div>
 
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="grid w-full sm:w-[600px] grid-cols-3 bg-white/5 border border-white/10 p-1 rounded-xl">
-                <TabsTrigger
-                  value="all"
-                  className="rounded-lg data-[state=active]:bg-slate-700 data-[state=active]:text-white"
-                >
-                  All Workload
-                </TabsTrigger>
-                <TabsTrigger
-                  value="academic"
-                  className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-                >
-                  Academic
-                </TabsTrigger>
-                <TabsTrigger
-                  value="personal"
-                  className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
-                >
-                  Personal
-                </TabsTrigger>
-              </TabsList>
+              {renderCommunityList()}
+            </TabsContent>
 
-              {["all", "academic", "personal"].map((type) => {
-                const currentList =
-                  type === "academic"
-                    ? academicTasks
-                    : type === "personal"
-                      ? personalTasks
-                      : allTasks;
-
-                const { upcoming, dueToday, overdue, completed } =
-                  categorizeTasks(currentList);
-
-                return (
-                  <TabsContent
-                    key={type}
-                    value={type}
-                    className="mt-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
+            {/* ROADMAPS & UPSKILL TAB */}
+            <TabsContent
+              value="upskill"
+              className="space-y-8 animate-in fade-in duration-500"
+            >
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-blue-400">
+                  <TerminalSquare className="w-5 h-5 text-blue-400" /> Share a
+                  Free Resource or Ask a Question
+                </h2>
+                <form
+                  onSubmit={handleCreateCommunityPost}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Title</Label>
+                      <Input
+                        required
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        placeholder="e.g. Free React Course"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Description</Label>
+                      <Input
+                        required
+                        value={postContent}
+                        onChange={(e) => setPostContent(e.target.value)}
+                        placeholder="Why is it helpful?"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">
+                        Resource Link{" "}
+                        <span className="text-xs text-slate-500">(opt)</span>
+                      </Label>
+                      <Input
+                        value={postLink}
+                        onChange={(e) => setPostLink(e.target.value)}
+                        placeholder="https://..."
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isPostingCommunity}
+                    className="bg-blue-600 hover:bg-blue-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(37,99,235,0.2)]"
                   >
-                    {overdue.length > 0 && (
-                      <section>
-                        <h2 className="text-xl font-bold text-red-400 flex items-center gap-2 mb-4">
-                          <AlertCircle className="w-5 h-5" /> Overdue
-                        </h2>
-                        {renderTaskList(overdue, "No overdue tasks.", true)}
-                      </section>
-                    )}
-                    {dueToday.length > 0 && (
-                      <section>
-                        <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-4">
-                          <Calendar className="w-5 h-5" /> Due Today
-                        </h2>
-                        {renderTaskList(dueToday, "You're clear for today!")}
-                      </section>
-                    )}
-                    <section>
-                      <h2 className="text-xl font-bold text-slate-300 flex items-center gap-2 mb-4">
-                        <Clock className="w-5 h-5" /> Upcoming
-                      </h2>
-                      {renderTaskList(upcoming, "Nothing on the horizon.")}
-                    </section>
-                    {completed.length > 0 && (
-                      <section>
-                        <h2 className="text-xl font-bold text-emerald-500/70 flex items-center gap-2 mb-4">
-                          <CheckCircle2 className="w-5 h-5" /> Completed
-                        </h2>
-                        {renderTaskList(
-                          completed,
-                          "No completed tasks.",
-                          false,
-                          true,
-                        )}
-                      </section>
-                    )}
-                  </TabsContent>
-                );
-              })}
-            </Tabs>
-          </TabsContent>
+                    {isPostingCommunity ? "Posting..." : "Share Resource"}
+                  </Button>
+                </form>
+              </div>
 
-          {/* DISCUSSION DISCOVERY TAB */}
-          <TabsContent
-            value="discussion"
-            className="space-y-8 animate-in fade-in duration-500"
-          >
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-purple-400">
-                <MessageSquare className="w-5 h-5 text-purple-400" /> Start a
-                Discussion
-              </h2>
-              <form onSubmit={handleCreateCommunityPost} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Topic Title</Label>
-                    <Input
-                      required
-                      value={postTitle}
-                      onChange={(e) => setPostTitle(e.target.value)}
-                      placeholder="e.g. Help with Chapter 4 algorithms?"
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-purple-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Description</Label>
-                    <Input
-                      required
-                      value={postContent}
-                      onChange={(e) => setPostContent(e.target.value)}
-                      placeholder="Share your thoughts or ask a question..."
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-purple-500"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={isPostingCommunity}
-                  className="bg-purple-600 hover:bg-purple-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(147,51,234,0.2)]"
-                >
-                  {isPostingCommunity ? "Posting..." : "Post Discussion"}
-                </Button>
-              </form>
-            </div>
+              {renderCommunityList()}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+      <AlertDialog
+        open={!!deleteConfirmTask}
+        onOpenChange={(open) => !open && setDeleteConfirmTask(null)}
+      >
+        <AlertDialogContent className="bg-slate-900 border border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              Delete Task?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Are you sure you want to permanently delete "
+              {deleteConfirmTask?.title}" from your workload?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent text-white border-slate-700 hover:bg-slate-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDeleteTask}
+              className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Workload
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-            {renderCommunityList()}
-          </TabsContent>
-
-          {/* EVENTS HUB TAB */}
-          <TabsContent
-            value="events"
-            className="space-y-6 animate-in fade-in duration-500"
-          >
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-emerald-400">
-                <Presentation className="w-5 h-5 text-emerald-400" /> Post a
-                Campus Event or Hackathon
-              </h2>
-              <form onSubmit={handleCreateCommunityPost} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Event Name</Label>
-                    <Input
-                      required
-                      value={postTitle}
-                      onChange={(e) => setPostTitle(e.target.value)}
-                      placeholder="e.g. Spring AI Hackathon"
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">
-                      Details (Time & Location)
-                    </Label>
-                    <Input
-                      required
-                      value={postContent}
-                      onChange={(e) => setPostContent(e.target.value)}
-                      placeholder="e.g. March 10th at Main Auditorium"
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">
-                      Registration Link{" "}
-                      <span className="text-xs text-slate-500">(opt)</span>
-                    </Label>
-                    <Input
-                      value={postLink}
-                      onChange={(e) => setPostLink(e.target.value)}
-                      placeholder="https://..."
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={isPostingCommunity}
-                  className="bg-emerald-600 hover:bg-emerald-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                >
-                  {isPostingCommunity ? "Posting..." : "Share Event"}
-                </Button>
-              </form>
-            </div>
-
-            {renderCommunityList()}
-          </TabsContent>
-
-          {/* ROADMAPS & UPSKILL TAB */}
-          <TabsContent
-            value="upskill"
-            className="space-y-8 animate-in fade-in duration-500"
-          >
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-blue-400">
-                <TerminalSquare className="w-5 h-5 text-blue-400" /> Share a
-                Free Resource or Ask a Question
-              </h2>
-              <form onSubmit={handleCreateCommunityPost} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Title</Label>
-                    <Input
-                      required
-                      value={postTitle}
-                      onChange={(e) => setPostTitle(e.target.value)}
-                      placeholder="e.g. Free React Course"
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Description</Label>
-                    <Input
-                      required
-                      value={postContent}
-                      onChange={(e) => setPostContent(e.target.value)}
-                      placeholder="Why is it helpful?"
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">
-                      Resource Link{" "}
-                      <span className="text-xs text-slate-500">(opt)</span>
-                    </Label>
-                    <Input
-                      value={postLink}
-                      onChange={(e) => setPostLink(e.target.value)}
-                      placeholder="https://..."
-                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={isPostingCommunity}
-                  className="bg-blue-600 hover:bg-blue-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(37,99,235,0.2)]"
-                >
-                  {isPostingCommunity ? "Posting..." : "Share Resource"}
-                </Button>
-              </form>
-            </div>
-
-            {renderCommunityList()}
-          </TabsContent>
-        </Tabs>
-      </div>
-    </main>
+      <AlertDialog
+        open={!!deleteConfirmPost}
+        onOpenChange={(open) => !open && setDeleteConfirmPost(null)}
+      >
+        <AlertDialogContent className="bg-slate-900 border border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              Delete Community Post?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Are you sure you want to permanently delete "
+              {deleteConfirmPost?.title}"? This will remove all upvotes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent text-white border-slate-700 hover:bg-slate-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDeleteCommunityPost}
+              className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Post
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

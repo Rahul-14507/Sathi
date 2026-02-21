@@ -9,6 +9,13 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -225,7 +232,13 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
             <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
 
             <form
-              onSubmit={step === 1 ? handleSendOtp : handleLogin}
+              onSubmit={
+                role === "ADMIN"
+                  ? handleLogin
+                  : step === 1
+                    ? handleSendOtp
+                    : handleLogin
+              }
               className="relative z-10 space-y-6"
             >
               <h2 className="text-3xl font-bold mb-8 text-center text-foreground tracking-tight">
@@ -252,22 +265,32 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
                       >
                         Class Section
                       </Label>
-                      <select
-                        id="section"
+                      <Select
                         value={sectionId}
-                        onChange={(e) => setSectionId(e.target.value)}
-                        className="w-full bg-background/50 border border-border text-foreground h-12 rounded-xl px-4 outline-none focus:ring-2 focus:ring-primary appearance-none"
+                        onValueChange={setSectionId}
                         required
                       >
-                        {sections.length === 0 && (
-                          <option value="">Loading Sections...</option>
-                        )}
-                        {sections.map((sec) => (
-                          <option key={sec.id} value={sec.sectionId}>
-                            {sec.sectionName} ({sec.sectionId})
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="w-full bg-background/50 border-border text-foreground h-12 rounded-xl px-4 focus:ring-2 focus:ring-primary focus:ring-offset-0">
+                          <SelectValue placeholder="Select a section" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card/90 backdrop-blur-xl border-border rounded-xl">
+                          {sections.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              Loading Sections...
+                            </div>
+                          ) : (
+                            sections.map((sec) => (
+                              <SelectItem
+                                key={sec.id}
+                                value={sec.sectionId}
+                                className="rounded-lg cursor-pointer"
+                              >
+                                {sec.sectionName} ({sec.sectionId})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
                     </motion.div>
                   )}
 
@@ -282,13 +305,13 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
                       className="text-muted-foreground text-sm font-medium"
                     >
                       {role === "ADMIN"
-                        ? "Admin Master Username"
+                        ? "Admin Username"
                         : "Institutional Domain ID"}
                     </Label>
                     <Input
                       id="domainId"
                       placeholder={
-                        role === "ADMIN" ? "admin" : "e.g. jdoe@institution.edu"
+                        role === "ADMIN" ? "Admin" : "e.g. jdoe@institution.edu"
                       }
                       value={domainId}
                       onChange={(e) => setDomainId(e.target.value)}
@@ -297,6 +320,31 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
                       className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary h-12 rounded-xl px-4"
                     />
                   </motion.div>
+
+                  {role === "ADMIN" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="space-y-3 pt-2"
+                    >
+                      <Label
+                        htmlFor="adminOtp"
+                        className="text-muted-foreground text-sm font-medium"
+                      >
+                        Master Password
+                      </Label>
+                      <Input
+                        id="adminOtp"
+                        type="password"
+                        placeholder="Enter admin password"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        required
+                        className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary h-12 rounded-xl px-4"
+                      />
+                    </motion.div>
+                  )}
 
                   {role !== "ADMIN" && (
                     <div className="pt-2 flex flex-col items-center">
@@ -326,7 +374,7 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
                 </>
               )}
 
-              {step === 2 && (
+              {step === 2 && role !== "ADMIN" && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -381,12 +429,16 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-14 rounded-xl mt-4 text-lg font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02]"
               >
                 {isLoading
-                  ? step === 1
-                    ? "Sending OTP..."
-                    : "Verifying..."
-                  : step === 1
-                    ? "Send OTP Code"
-                    : "Verify & Login"}
+                  ? role === "ADMIN"
+                    ? "Logging in..."
+                    : step === 1
+                      ? "Sending OTP..."
+                      : "Verifying..."
+                  : role === "ADMIN"
+                    ? "Login"
+                    : step === 1
+                      ? "Send OTP Code"
+                      : "Verify & Login"}
               </Button>
             </form>
           </motion.div>

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
     // Hardcode management login for the MVP
     if (role === "management") {
-      if (domainId === "admin" && body.otp === "admin") {
+      if (domainId === "Admin" && body.otp === "123456") {
         return NextResponse.json({ success: true, role: "management" });
       }
       return NextResponse.json(
