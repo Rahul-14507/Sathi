@@ -1,4 +1,4 @@
-import { CosmosClient } from "@azure/cosmos";
+import { CosmosClient, Container } from "@azure/cosmos";
 
 const endpoint = process.env.COSMOS_ENDPOINT || "https://localhost:8081";
 const key =
@@ -9,8 +9,13 @@ const key =
 const client = new CosmosClient({ endpoint, key });
 
 export const database = client.database("SathiDB");
-export const tasksContainer = database.container("Tasks");
-export const usersContainer = database.container("Users");
+let tasksContainer: Container;
+let usersContainer: Container;
+let otpsContainer: Container;
+let communityContainer: Container;
+
+// Export initialized containers for use in API routes
+export { tasksContainer, usersContainer, otpsContainer, communityContainer };
 
 export interface TaskItem {
   id: string;
@@ -29,15 +34,35 @@ export async function initDB() {
     const { database: db } = await client.databases.createIfNotExists({
       id: "SathiDB",
     });
-    await db.containers.createIfNotExists({
+
+    const { container: tContainer } = await db.containers.createIfNotExists({
       id: "Tasks",
       partitionKey: { paths: ["/userId"] },
     });
-    await db.containers.createIfNotExists({
+    tasksContainer = tContainer;
+
+    const { container: uContainer } = await db.containers.createIfNotExists({
       id: "Users",
       partitionKey: { paths: ["/sectionId"] },
     });
-    console.log("✅ Cosmos DB initialized: SathiDB / Tasks & Users");
+    usersContainer = uContainer;
+
+    const { container: oContainer } = await db.containers.createIfNotExists({
+      id: "OTPs",
+      partitionKey: { paths: ["/email"] },
+      defaultTtl: 600, // 10 minute expiry
+    });
+    otpsContainer = oContainer;
+
+    const { container: commContainer } = await db.containers.createIfNotExists({
+      id: "Community",
+      partitionKey: { paths: ["/category"] },
+    });
+    communityContainer = commContainer;
+
+    console.log(
+      "✅ Cosmos DB initialized: SathiDB / Tasks, Users, OTPs, Community",
+    );
   } catch (err) {
     console.error("❌ Failed to initialize Cosmos DB:", err);
   }

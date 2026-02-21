@@ -22,6 +22,10 @@ import {
   MessageSquare,
   Presentation,
   TerminalSquare,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Search,
+  ExternalLink,
 } from "lucide-react";
 
 export default function StudentDashboard() {
@@ -47,6 +51,26 @@ export default function StudentDashboard() {
   const [editPriority, setEditPriority] = useState("medium");
   const [lastSync, setLastSync] = useState(Date.now());
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Community Hub State
+  const [activeTab, setActiveTab] = useState("tasks");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [communityPosts, setCommunityPosts] = useState<any[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+
+  // Community Post Form State
+  const [postTitle, setPostTitle] = useState("");
+  const [postContent, setPostContent] = useState("");
+  const [postLink, setPostLink] = useState("");
+  const [isPostingCommunity, setIsPostingCommunity] = useState(false);
+
+  // Community Edit State
+  const [editingCommunityPostId, setEditingCommunityPostId] = useState<
+    string | null
+  >(null);
+  const [editCommunityTitle, setEditCommunityTitle] = useState("");
+  const [editCommunityContent, setEditCommunityContent] = useState("");
+  const [editCommunityLink, setEditCommunityLink] = useState("");
 
   // Setup minute-tick clock for Time-Aware logic
   useEffect(() => {
@@ -110,9 +134,37 @@ export default function StudentDashboard() {
       });
   };
 
+  const fetchCommunityPosts = (category: string, search: string = "") => {
+    if (category === "tasks") return; // Tasks are handled separately
+    setCommunityLoading(true);
+    let url = `/api/community?category=${encodeURIComponent(category)}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        setCommunityPosts(Array.isArray(data) ? data : []);
+        setCommunityLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setCommunityLoading(false);
+      });
+  };
+
   useEffect(() => {
     fetchTasks();
   }, [userId, sectionId]);
+
+  useEffect(() => {
+    // Delay search triggering slightly (debounce)
+    const timeoutId = setTimeout(() => {
+      fetchCommunityPosts(activeTab, searchQuery);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [activeTab, searchQuery]);
 
   const handleCompleteTask = async (task: any) => {
     try {
@@ -226,6 +278,130 @@ export default function StudentDashboard() {
       console.error(err);
     } finally {
       setPosting(false);
+    }
+  };
+
+  const handleCreateCommunityPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsPostingCommunity(true);
+    try {
+      const res = await fetch("/api/community", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: activeTab,
+          title: postTitle,
+          content: postContent,
+          link: postLink,
+          authorId: userId,
+          sectionId: sectionId,
+        }),
+      });
+      if (res.ok) {
+        setPostTitle("");
+        setPostContent("");
+        setPostLink("");
+        toast.success("Post published to community!");
+        fetchCommunityPosts(activeTab, searchQuery);
+      } else {
+        toast.error("Failed to publish post.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error.");
+    } finally {
+      setIsPostingCommunity(false);
+    }
+  };
+
+  const handleVote = async (postId: string, action: "upvote" | "downvote") => {
+    // Optimistic Update
+    setCommunityPosts((prev) =>
+      prev.map((p) => {
+        if (p.id === postId) {
+          return { ...p, upvotes: p.upvotes + (action === "upvote" ? 1 : -1) };
+        }
+        return p;
+      }),
+    );
+
+    try {
+      await fetch("/api/community/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          postId,
+          category: activeTab,
+          action,
+        }),
+      });
+      // We don't necessarily need to refetch immediately to preserve user view
+    } catch (err) {
+      console.error("Failed to vote:", err);
+      // Revert optimistic update on failure by simply refetching
+      fetchCommunityPosts(activeTab, searchQuery);
+    }
+  };
+
+  const handleDeleteCommunityPost = async (post: any) => {
+    if (!confirm("Are you sure you want to delete this post?")) return;
+    try {
+      setCommunityPosts((prev) => prev.filter((p) => p.id !== post.id));
+      await fetch(
+        `/api/community?id=${post.id}&category=${post.category}&authorId=${encodeURIComponent(userId || "")}`,
+        {
+          method: "DELETE",
+        },
+      );
+      toast.success("Post deleted.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete post.");
+    }
+  };
+
+  const startEditCommunityPost = (post: any) => {
+    setEditingCommunityPostId(post.id);
+    setEditCommunityTitle(post.title);
+    setEditCommunityContent(post.content);
+    setEditCommunityLink(post.link || "");
+  };
+
+  const saveEditCommunityPost = async (post: any) => {
+    try {
+      const updated = {
+        ...post,
+        title: editCommunityTitle,
+        content: editCommunityContent,
+        link: editCommunityLink,
+        isEdited: true,
+      };
+      setCommunityPosts((prev) =>
+        prev.map((p) => (p.id === post.id ? updated : p)),
+      );
+      setEditingCommunityPostId(null);
+
+      const res = await fetch("/api/community", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: post.id,
+          category: post.category,
+          authorId: userId,
+          title: editCommunityTitle,
+          content: editCommunityContent,
+          link: editCommunityLink,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Post updated!");
+      } else {
+        toast.error("Failed to update post.");
+        fetchCommunityPosts(activeTab, searchQuery);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error updating post.");
     }
   };
 
@@ -442,6 +618,172 @@ export default function StudentDashboard() {
       </div>
     );
   };
+  const renderCommunityList = () => {
+    if (communityLoading) {
+      return (
+        <div className="text-center py-10 text-slate-400 animate-pulse">
+          Loading posts...
+        </div>
+      );
+    }
+    if (communityPosts.length === 0) {
+      return (
+        <div className="text-center py-10 text-slate-500 italic border border-white/5 rounded-2xl bg-white/5">
+          No posts found in this category. Be the first!
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {communityPosts.map((post) => (
+          <div
+            key={post.id}
+            className="p-6 rounded-2xl bg-slate-900/80 border border-white/10 shadow-xl flex gap-4 transition-all hover:bg-slate-900"
+          >
+            {/* Voting Column */}
+            <div className="flex flex-col items-center gap-1 min-w-[40px]">
+              <button
+                onClick={() => handleVote(post.id, "upvote")}
+                className="text-slate-500 hover:text-emerald-400 transition-colors"
+                title="Upvote"
+              >
+                <ArrowUpCircle className="w-6 h-6" />
+              </button>
+              <span
+                className={`font-bold ${post.upvotes > 0 ? "text-emerald-400" : post.upvotes < 0 ? "text-red-400" : "text-slate-400"}`}
+              >
+                {post.upvotes || 0}
+              </span>
+              <button
+                onClick={() => handleVote(post.id, "downvote")}
+                className="text-slate-500 hover:text-red-400 transition-colors"
+                title="Downvote"
+              >
+                <ArrowDownCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content Column */}
+            <div className="flex-1 space-y-2">
+              {editingCommunityPostId === post.id ? (
+                <div className="space-y-3">
+                  <Input
+                    value={editCommunityTitle}
+                    onChange={(e) => setEditCommunityTitle(e.target.value)}
+                    className="bg-black/30 border-white/20 text-slate-100"
+                  />
+                  <Input
+                    value={editCommunityContent}
+                    onChange={(e) => setEditCommunityContent(e.target.value)}
+                    className="bg-black/30 border-white/20 text-slate-100"
+                  />
+                  {post.category !== "discussion" && (
+                    <Input
+                      value={editCommunityLink}
+                      onChange={(e) => setEditCommunityLink(e.target.value)}
+                      placeholder="Link (optional)"
+                      className="bg-black/30 border-white/20 text-slate-100"
+                    />
+                  )}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      onClick={() => saveEditCommunityPost(post)}
+                      className="bg-emerald-600 hover:bg-emerald-500"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditingCommunityPostId(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-xl text-slate-100">
+                      {post.title}
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-slate-500 bg-black/40 px-2 py-1 rounded-full border border-white/5 flex items-center gap-1">
+                        by {post.authorId}
+                        {post.isEdited && (
+                          <span className="text-slate-400 font-medium italic ml-1">
+                            (edited)
+                          </span>
+                        )}
+                      </div>
+                      {post.authorId === userId && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => startEditCommunityPost(post)}
+                            className="text-slate-500 hover:text-blue-400 p-1"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCommunityPost(post)}
+                            className="text-slate-500 hover:text-red-400 p-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-400 whitespace-pre-wrap leading-relaxed">
+                    {post.content}
+                  </p>
+                </>
+              )}
+
+              {/* Conditional Extras */}
+              {post.link && (
+                <div className="pt-2">
+                  <a
+                    href={post.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20 transition-all hover:bg-blue-500/20"
+                  >
+                    <ExternalLink className="w-4 h-4" /> Open Resource Link
+                  </a>
+                </div>
+              )}
+
+              {post.category === "events" && (
+                <div className="pt-2">
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
+                    onClick={() => {
+                      setTitle(`Attend: ${post.title}`);
+                      setDeadline(
+                        new Date(Date.now() + 86400000 * 2).toISOString(),
+                      ); // Default 2 days
+                      setPriority("high");
+                      setActiveTab("tasks"); // Switch to task tab to finalize
+                      toast.success(
+                        "Drafted task event! Set your deadline and click 'Add' to lock it in.",
+                      );
+                    }}
+                  >
+                    <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
+                    Add to My Workload Schedule
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   if (loading)
     return (
@@ -471,7 +813,12 @@ export default function StudentDashboard() {
           </Button>
         </div>
 
-        <Tabs defaultValue="tasks" className="w-full">
+        <Tabs
+          defaultValue="tasks"
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
           <TabsList className="grid w-full sm:w-[800px] grid-cols-4 bg-white/5 border border-white/10 p-1 rounded-xl mx-auto mb-8">
             <TabsTrigger
               value="tasks"
@@ -489,15 +836,27 @@ export default function StudentDashboard() {
               value="events"
               className="rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-medium"
             >
-              Campus Events
+              Events
             </TabsTrigger>
             <TabsTrigger
               value="upskill"
-              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium"
+              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
             >
-              Upskill
+              Upskill & Free Resources
             </TabsTrigger>
           </TabsList>
+
+          {activeTab !== "tasks" && (
+            <div className="mb-8 relative max-w-2xl mx-auto">
+              <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
+              <Input
+                placeholder={`Search ${activeTab}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 bg-black/40 border-white/20 text-white h-12 rounded-xl focus-visible:ring-indigo-500 placeholder:text-slate-500"
+              />
+            </div>
+          )}
 
           {/* MAIN TASKS TAB WITH TIME-AWARE DASHBOARD VIEWER */}
           <TabsContent
@@ -675,19 +1034,45 @@ export default function StudentDashboard() {
             value="discussion"
             className="space-y-8 animate-in fade-in duration-500"
           >
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-12 text-center text-slate-400 shadow-2xl">
-              <MessageSquare className="w-16 h-16 mx-auto mb-6 text-purple-400 opacity-50" />
-              <h3 className="text-2xl font-semibold text-slate-200 mb-3">
-                Community Discussions
-              </h3>
-              <p className="max-w-md mx-auto mb-8">
-                Ask questions to your class section, share study notes, and
-                collaborate with your peers in real-time.
-              </p>
-              <Button className="bg-purple-600 hover:bg-purple-500 text-lg h-12 px-8">
-                Start a Discussion
-              </Button>
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-purple-400">
+                <MessageSquare className="w-5 h-5 text-purple-400" /> Start a
+                Discussion
+              </h2>
+              <form onSubmit={handleCreateCommunityPost} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Topic Title</Label>
+                    <Input
+                      required
+                      value={postTitle}
+                      onChange={(e) => setPostTitle(e.target.value)}
+                      placeholder="e.g. Help with Chapter 4 algorithms?"
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-purple-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Description</Label>
+                    <Input
+                      required
+                      value={postContent}
+                      onChange={(e) => setPostContent(e.target.value)}
+                      placeholder="Share your thoughts or ask a question..."
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-purple-500"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isPostingCommunity}
+                  className="bg-purple-600 hover:bg-purple-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(147,51,234,0.2)]"
+                >
+                  {isPostingCommunity ? "Posting..." : "Post Discussion"}
+                </Button>
+              </form>
             </div>
+
+            {renderCommunityList()}
           </TabsContent>
 
           {/* EVENTS HUB TAB */}
@@ -695,94 +1080,117 @@ export default function StudentDashboard() {
             value="events"
             className="space-y-6 animate-in fade-in duration-500"
           >
-            <h2 className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
-              <Presentation className="w-6 h-6" /> Upcoming Campus Events &
-              Hackathons
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="p-6 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col">
-                <div className="flex-1 space-y-3">
-                  <h4 className="font-bold text-xl text-slate-100">
-                    Spring AI Hackathon 2026
-                  </h4>
-                  <p className="text-sm text-slate-400">
-                    Join the 48-hour sprint. Build AI agents and win up to $5000
-                    in prizes!
-                  </p>
-                  <p className="text-emerald-300 text-xs font-mono bg-emerald-500/10 inline-block px-2 py-1 rounded">
-                    Main Auditorium
-                  </p>
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-emerald-400">
+                <Presentation className="w-5 h-5 text-emerald-400" /> Post a
+                Campus Event or Hackathon
+              </h2>
+              <form onSubmit={handleCreateCommunityPost} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Event Name</Label>
+                    <Input
+                      required
+                      value={postTitle}
+                      onChange={(e) => setPostTitle(e.target.value)}
+                      placeholder="e.g. Spring AI Hackathon"
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">
+                      Details (Time & Location)
+                    </Label>
+                    <Input
+                      required
+                      value={postContent}
+                      onChange={(e) => setPostContent(e.target.value)}
+                      placeholder="e.g. March 10th at Main Auditorium"
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">
+                      Registration Link{" "}
+                      <span className="text-xs text-slate-500">(opt)</span>
+                    </Label>
+                    <Input
+                      value={postLink}
+                      onChange={(e) => setPostLink(e.target.value)}
+                      placeholder="https://..."
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-emerald-500"
+                    />
+                  </div>
                 </div>
                 <Button
-                  className="w-full mt-6 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
-                  onClick={() => {
-                    setTitle("Attend Spring AI Hackathon");
-                    setDeadline(
-                      new Date(Date.now() + 86400000 * 2).toISOString(),
-                    ); // 2 days from now
-                    setPriority("high");
-                    // Trigger toast locally
-                    toast.success(
-                      "Prepared hackathon event! Click 'Add' on your task form to lock it into your schedule.",
-                    );
-                  }}
+                  type="submit"
+                  disabled={isPostingCommunity}
+                  className="bg-emerald-600 hover:bg-emerald-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(16,185,129,0.2)]"
                 >
-                  <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
-                  Prepare to Schedule
+                  {isPostingCommunity ? "Posting..." : "Share Event"}
                 </Button>
-              </div>
-
-              <div className="p-6 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col">
-                <div className="flex-1 space-y-3">
-                  <h4 className="font-bold text-xl text-slate-100">
-                    Cloud Computing Workshop
-                  </h4>
-                  <p className="text-sm text-slate-400">
-                    Learn the absolute basics of deploying applications using
-                    modern cloud infrastructure like Azure.
-                  </p>
-                  <p className="text-blue-300 text-xs font-mono bg-blue-500/10 inline-block px-2 py-1 rounded">
-                    CS Lab 3
-                  </p>
-                </div>
-                <Button
-                  className="w-full mt-6 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
-                  onClick={() => {
-                    setTitle("Attend Cloud Workshop");
-                    setDeadline(
-                      new Date(Date.now() + 86400000 * 4).toISOString(),
-                    );
-                    setPriority("medium");
-                    toast.success(
-                      "Prepared workshop event! Click 'Add' on your task form to lock it into your schedule.",
-                    );
-                  }}
-                >
-                  <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
-                  Prepare to Schedule
-                </Button>
-              </div>
+              </form>
             </div>
+
+            {renderCommunityList()}
           </TabsContent>
 
-          {/* ROADMAPS TAB */}
+          {/* ROADMAPS & UPSKILL TAB */}
           <TabsContent
             value="upskill"
             className="space-y-8 animate-in fade-in duration-500"
           >
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-12 text-center text-slate-400 shadow-2xl">
-              <TerminalSquare className="w-16 h-16 mx-auto mb-6 text-blue-400 opacity-50" />
-              <h3 className="text-2xl font-semibold text-slate-200 mb-3">
-                Upskill & Micro-Certifications
-              </h3>
-              <p className="max-w-md mx-auto mb-8">
-                Follow curated, dynamically generated learning roadmaps based on
-                your current coursework to accelerate your career.
-              </p>
-              <Button className="bg-blue-600 hover:bg-blue-500 text-lg h-12 px-8">
-                Explore Roadmaps
-              </Button>
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-blue-400">
+                <TerminalSquare className="w-5 h-5 text-blue-400" /> Share a
+                Free Resource or Ask a Question
+              </h2>
+              <form onSubmit={handleCreateCommunityPost} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Title</Label>
+                    <Input
+                      required
+                      value={postTitle}
+                      onChange={(e) => setPostTitle(e.target.value)}
+                      placeholder="e.g. Free React Course"
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Description</Label>
+                    <Input
+                      required
+                      value={postContent}
+                      onChange={(e) => setPostContent(e.target.value)}
+                      placeholder="Why is it helpful?"
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">
+                      Resource Link{" "}
+                      <span className="text-xs text-slate-500">(opt)</span>
+                    </Label>
+                    <Input
+                      value={postLink}
+                      onChange={(e) => setPostLink(e.target.value)}
+                      placeholder="https://..."
+                      className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isPostingCommunity}
+                  className="bg-blue-600 hover:bg-blue-500 h-10 px-8 text-white font-medium shadow-[0_0_15px_rgba(37,99,235,0.2)]"
+                >
+                  {isPostingCommunity ? "Posting..." : "Share Resource"}
+                </Button>
+              </form>
             </div>
+
+            {renderCommunityList()}
           </TabsContent>
         </Tabs>
       </div>

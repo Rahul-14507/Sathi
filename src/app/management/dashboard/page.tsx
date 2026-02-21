@@ -17,6 +17,11 @@ export default function ManagementDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [existingSections, setExistingSections] = useState<any[]>([]);
 
+  // Edit State
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [editCrId, setEditCrId] = useState("");
+  const [editStudentEmails, setEditStudentEmails] = useState("");
+
   const fetchSections = () => {
     fetch("/api/sections")
       .then((res) => res.json())
@@ -63,6 +68,48 @@ export default function ManagementDashboard() {
       } else {
         const err = await res.json();
         alert(`Error: ${err.error || "Failed to create section"}`);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Network error.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditSection = async (
+    e: React.FormEvent,
+    targetSectionId: string,
+  ) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    const emailList = editStudentEmails
+      .split(",")
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0);
+
+    try {
+      const res = await fetch("/api/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "edit_section",
+          sectionId: targetSectionId,
+          crId: editCrId || undefined,
+          domainIds: emailList,
+        }),
+      });
+
+      if (res.ok) {
+        alert(`Successfully updated Section ${targetSectionId}!`);
+        setEditingSectionId(null);
+        setEditCrId("");
+        setEditStudentEmails("");
+        fetchSections();
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.error || "Failed to update section"}`);
       }
     } catch (error) {
       console.error(error);
@@ -182,17 +229,103 @@ export default function ManagementDashboard() {
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-lg text-slate-100">
+                        <h3 className="font-bold text-lg text-slate-100 flex items-center gap-2">
                           {sec.sectionId}
+                          <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
+                            Active
+                          </span>
                         </h3>
                         <p className="text-sm text-slate-400">
                           {sec.sectionName}
                         </p>
                       </div>
-                      <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full border border-purple-500/30">
-                        Active
-                      </span>
+
+                      {editingSectionId !== sec.sectionId ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            setEditingSectionId(sec.sectionId);
+                            setEditCrId("Loading...");
+                            setEditStudentEmails("Loading...");
+                            try {
+                              const res = await fetch(
+                                `/api/sections?details=${sec.sectionId}`,
+                              );
+                              if (res.ok) {
+                                const data = await res.json();
+                                setEditCrId(data.crId || "");
+                                setEditStudentEmails(
+                                  data.students?.join(", ") || "",
+                                );
+                              } else {
+                                setEditCrId("");
+                                setEditStudentEmails("");
+                              }
+                            } catch (e) {
+                              setEditCrId("");
+                              setEditStudentEmails("");
+                            }
+                          }}
+                          className="border-white/20 text-white hover:bg-white/10"
+                        >
+                          Edit
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingSectionId(null)}
+                          className="text-slate-400 hover:text-white"
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </div>
+
+                    {/* Expandable Edit Form */}
+                    {editingSectionId === sec.sectionId && (
+                      <div className="mt-4 pt-4 border-t border-white/10 animate-in slide-in-from-top-2">
+                        <form
+                          onSubmit={(e) => handleEditSection(e, sec.sectionId)}
+                          className="space-y-4"
+                        >
+                          <div className="space-y-2">
+                            <Label className="text-slate-300 text-xs text-blue-400 font-semibold">
+                              Update CR Domain ID (Overwrites old CR)
+                            </Label>
+                            <Input
+                              type="email"
+                              value={editCrId}
+                              onChange={(e) => setEditCrId(e.target.value)}
+                              placeholder="New CR Email (Leave blank to keep old)"
+                              className="bg-black/30 border-white/20 text-white font-mono text-sm h-10"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-slate-300 text-xs text-blue-400 font-semibold">
+                              Add More Student Emails (Comma Separated)
+                            </Label>
+                            <textarea
+                              value={editStudentEmails}
+                              onChange={(e) =>
+                                setEditStudentEmails(e.target.value)
+                              }
+                              rows={3}
+                              className="w-full bg-black/30 border-white/20 text-white rounded-md p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 border"
+                              placeholder="student3@domain.edu, student4@domain.edu"
+                            />
+                          </div>
+                          <Button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full h-10 bg-blue-600 hover:bg-blue-500 text-sm font-bold shadow-md shadow-blue-900/30"
+                          >
+                            {isLoading ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </form>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

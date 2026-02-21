@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { usersContainer, initDB } from "@/lib/cosmos";
+import { usersContainer, otpsContainer, initDB } from "@/lib/cosmos";
 
 export async function POST(request: Request) {
   try {
@@ -44,11 +44,7 @@ export async function POST(request: Request) {
       .query(querySpec)
       .fetchAll();
 
-    if (users.length > 0) {
-      // Validated
-      return NextResponse.json({ success: true, user: users[0] });
-    } else {
-      // Rejected
+    if (users.length === 0) {
       return NextResponse.json(
         {
           error:
@@ -57,6 +53,41 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
+
+    // Step 2: Verify the OTP against Cosmos DB
+    if (!otpsContainer) {
+      return NextResponse.json({ error: "DB not connected" }, { status: 500 });
+    }
+
+    const otpQuery = {
+      query:
+        "SELECT * FROM c WHERE c.email = @email AND c.otp = @otp AND c.expiresAt > @now",
+      parameters: [
+        { name: "@email", value: domainId },
+        { name: "@otp", value: body.otp },
+        { name: "@now", value: Date.now() },
+      ],
+    };
+
+    const { resources: matchingOtps } = await otpsContainer.items
+      .query(otpQuery)
+      .fetchAll();
+
+    if (matchingOtps.length === 0) {
+      return NextResponse.json(
+        { error: "Invalid or expired OTP. Please request a new one." },
+        { status: 401 },
+      );
+    }
+
+    // Optional: Delete the OTP so it cannot be reused
+    await otpsContainer
+      .item(domainId, domainId)
+      .delete()
+      .catch(() => {});
+
+    // Validated
+    return NextResponse.json({ success: true, user: users[0] });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

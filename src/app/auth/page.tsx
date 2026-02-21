@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 function AuthForm() {
   const searchParams = useSearchParams();
@@ -17,6 +18,7 @@ function AuthForm() {
   const [sections, setSections] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [step, setStep] = useState<1 | 2>(1);
 
   useEffect(() => {
     // Only fetch sections if they are a student or CR. Management doesn't need sections.
@@ -32,6 +34,45 @@ function AuthForm() {
         .catch((err) => console.error(err));
     }
   }, [role]);
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      if (role === "management") {
+        // Management bypasses OTP generation for MVP
+        setStep(2);
+        setIsLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domainId: domainId.trim(),
+          role,
+          sectionId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        toast.success("OTP Code sent to your email!");
+        setStep(2);
+      } else {
+        setErrorMsg(data.error || "Failed to send OTP");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Network error requesting OTP.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +94,7 @@ function AuthForm() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        toast.success("Authentication successful!");
         if (role === "student") {
           router.push(
             `/student/dashboard?sectionId=${sectionId}&userId=${domainId.trim()}`,
@@ -81,7 +123,10 @@ function AuthForm() {
     }[role as string] || "Login Portal";
 
   return (
-    <form onSubmit={handleLogin} className="space-y-6">
+    <form
+      onSubmit={step === 1 ? handleSendOtp : handleLogin}
+      className="space-y-6"
+    >
       <h2 className="text-3xl font-bold mb-8 text-center text-white">
         {roleTitle}
       </h2>
@@ -92,77 +137,103 @@ function AuthForm() {
         </div>
       )}
 
-      {role !== "management" && (
-        <div className="space-y-3">
-          <Label
-            htmlFor="section"
-            className="text-slate-300 text-sm font-medium"
-          >
-            Class Section
-          </Label>
-          <select
-            id="section"
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-            className="w-full bg-black/30 border border-white/20 text-white h-12 rounded-xl px-4 outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          >
-            {sections.length === 0 && (
-              <option value="">Loading Sections...</option>
-            )}
-            {sections.map((sec) => (
-              <option key={sec.id} value={sec.sectionId}>
-                {sec.sectionName} ({sec.sectionId})
-              </option>
-            ))}
-          </select>
-        </div>
+      {step === 1 && (
+        <>
+          {role !== "management" && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <Label
+                htmlFor="section"
+                className="text-slate-300 text-sm font-medium"
+              >
+                Class Section
+              </Label>
+              <select
+                id="section"
+                value={sectionId}
+                onChange={(e) => setSectionId(e.target.value)}
+                className="w-full bg-black/30 border border-white/20 text-white h-12 rounded-xl px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                {sections.length === 0 && (
+                  <option value="">Loading Sections...</option>
+                )}
+                {sections.map((sec) => (
+                  <option key={sec.id} value={sec.sectionId}>
+                    {sec.sectionName} ({sec.sectionId})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Label
+              htmlFor="domainId"
+              className="text-slate-300 text-sm font-medium"
+            >
+              {role === "management"
+                ? "Admin Master Username"
+                : "Institutional Domain ID"}
+            </Label>
+            <Input
+              id="domainId"
+              placeholder={
+                role === "management" ? "admin" : "e.g. jdoe@institution.edu"
+              }
+              value={domainId}
+              onChange={(e) => setDomainId(e.target.value)}
+              required
+              className="bg-black/30 border-white/20 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-12 rounded-xl px-4"
+            />
+          </div>
+        </>
       )}
 
-      <div className="space-y-3">
-        <Label
-          htmlFor="domainId"
-          className="text-slate-300 text-sm font-medium"
-        >
-          {role === "management"
-            ? "Admin Master Username"
-            : "Institutional Domain ID"}
-        </Label>
-        <Input
-          id="domainId"
-          placeholder={
-            role === "management" ? "admin" : "e.g. jdoe@institution.edu"
-          }
-          value={domainId}
-          onChange={(e) => setDomainId(e.target.value)}
-          required
-          className="bg-black/30 border-white/20 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-12 rounded-xl px-4"
-        />
-      </div>
+      {step === 2 && (
+        <div className="space-y-3 animate-in fade-in zoom-in-95 duration-500">
+          <div className="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center">
+            <p className="text-slate-300 text-sm mb-1">Authenticating as</p>
+            <p className="text-white font-medium">{domainId}</p>
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+            >
+              Change Email
+            </button>
+          </div>
 
-      <div className="space-y-3">
-        <Label htmlFor="otp" className="text-slate-300 text-sm font-medium">
-          {role === "management"
-            ? "Master Password"
-            : "One-Time Password (OTP)"}
-        </Label>
-        <Input
-          id="otp"
-          type="password"
-          placeholder={role === "management" ? "admin" : "Enter 1234 for mock"}
-          value={otp}
-          onChange={(e) => setOtp(e.target.value)}
-          required
-          className="bg-black/30 border-white/20 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-12 rounded-xl px-4"
-        />
-      </div>
+          <Label htmlFor="otp" className="text-slate-300 text-sm font-medium">
+            {role === "management" ? "Master Password" : "6-Digit Secure OTP"}
+          </Label>
+          <Input
+            id="otp"
+            type="password"
+            placeholder={
+              role === "management"
+                ? "admin"
+                : "Enter the code sent to your email"
+            }
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            required
+            className="bg-black/30 border-white/20 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-12 rounded-xl px-4 text-center tracking-widest text-lg"
+          />
+        </div>
+      )}
 
       <Button
         type="submit"
         disabled={isLoading || (role !== "management" && sections.length === 0)}
-        className="w-full bg-blue-600 hover:bg-blue-500 h-14 rounded-xl mt-6 text-lg font-semibold shadow-lg shadow-blue-900/40"
+        className="w-full bg-blue-600 hover:bg-blue-500 h-14 rounded-xl mt-6 text-lg font-semibold shadow-lg shadow-blue-900/40 transition-all hover:scale-[1.02]"
       >
-        {isLoading ? "Authenticating..." : "Verify & Login"}
+        {isLoading
+          ? step === 1
+            ? "Sending OTP..."
+            : "Verifying..."
+          : step === 1
+            ? "Send OTP Code"
+            : "Verify & Login"}
       </Button>
     </form>
   );

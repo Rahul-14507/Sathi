@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { Clock, Users, Trash2, Edit2, Save, X } from "lucide-react";
+import { Clock, Users, Trash2, Edit2, Save, X, BellRing } from "lucide-react";
 
 export default function CRDashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -17,6 +17,7 @@ export default function CRDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [remindingTaskId, setRemindingTaskId] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const sectionId = searchParams.get("sectionId");
@@ -118,6 +119,38 @@ export default function CRDashboard() {
       alert("Error broadcasting");
     } finally {
       setIsBroadcasting(false);
+    }
+  };
+
+  const handleRemind = async (task: any) => {
+    if (
+      !confirm(
+        `Send an email reminder to all students in Section ${sectionId} for "${task.title}"?`,
+      )
+    )
+      return;
+
+    setRemindingTaskId(task.id);
+    try {
+      const res = await fetch("/api/tasks/remind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: task.id,
+          sectionId: sectionId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Reminder sent successfully!");
+      } else {
+        alert(`Failed to send reminder: ${data.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error sending reminder blast.");
+    } finally {
+      setRemindingTaskId(null);
     }
   };
 
@@ -337,6 +370,18 @@ export default function CRDashboard() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemind(task)}
+                        disabled={remindingTaskId === task.id}
+                        className="hover:bg-amber-500/20 hover:text-amber-400 rounded-full text-slate-500 border border-slate-700 h-8 w-8 transition-colors"
+                        title="Ping Class with Reminder"
+                      >
+                        <BellRing
+                          className={`w-4 h-4 ${remindingTaskId === task.id ? "animate-pulse" : ""}`}
+                        />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
