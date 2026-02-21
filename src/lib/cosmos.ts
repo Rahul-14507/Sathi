@@ -5,65 +5,24 @@ const key =
   process.env.COSMOS_KEY ||
   "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 
-// Initialize connection safely so it doesn't crash on build without env vars
-const client = new CosmosClient({ endpoint, key });
+// Use a global variable to preserve the CosmosClient across hot-reloads in dev
+const globalForCosmos = global as unknown as { cosmosClient: CosmosClient };
+
+const client =
+  globalForCosmos.cosmosClient || new CosmosClient({ endpoint, key });
+
+if (process.env.NODE_ENV !== "production")
+  globalForCosmos.cosmosClient = client;
 
 export const database = client.database("SathiDB");
-let tasksContainer: Container;
-let usersContainer: Container;
-let otpsContainer: Container;
-let communityContainer: Container;
-
-// Export initialized containers for use in API routes
-export { tasksContainer, usersContainer, otpsContainer, communityContainer };
-
-export interface TaskItem {
-  id: string;
-  userId: string; // The user who owns this task, or 'global' for global student tasks
-  title: string;
-  description?: string;
-  deadline: string; // ISO String
-  type: "academic" | "personal";
-  priority?: "low" | "medium" | "high";
-  status: "pending" | "completed";
-}
+export const tasksContainer = database.container("Tasks");
+export const usersContainer = database.container("Users");
+export const otpsContainer = database.container("OTPs");
+export const communityContainer = database.container("Community");
 
 // Helper to initialize DB (can be called on startup or first API hit)
 export async function initDB() {
-  try {
-    const { database: db } = await client.databases.createIfNotExists({
-      id: "SathiDB",
-    });
-
-    const { container: tContainer } = await db.containers.createIfNotExists({
-      id: "Tasks",
-      partitionKey: { paths: ["/userId"] },
-    });
-    tasksContainer = tContainer;
-
-    const { container: uContainer } = await db.containers.createIfNotExists({
-      id: "Users",
-      partitionKey: { paths: ["/sectionId"] },
-    });
-    usersContainer = uContainer;
-
-    const { container: oContainer } = await db.containers.createIfNotExists({
-      id: "OTPs",
-      partitionKey: { paths: ["/email"] },
-      defaultTtl: 600, // 10 minute expiry
-    });
-    otpsContainer = oContainer;
-
-    const { container: commContainer } = await db.containers.createIfNotExists({
-      id: "Community",
-      partitionKey: { paths: ["/category"] },
-    });
-    communityContainer = commContainer;
-
-    console.log(
-      "✅ Cosmos DB initialized: SathiDB / Tasks, Users, OTPs, Community",
-    );
-  } catch (err) {
-    console.error("❌ Failed to initialize Cosmos DB:", err);
-  }
+  // We no longer call `createIfNotExists()` on every API request.
+  // The containers were already scaffolded, and calling this was adding massive latency.
+  return;
 }

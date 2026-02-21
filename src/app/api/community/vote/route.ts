@@ -9,9 +9,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { postId, category, action } = body;
+    const { postId, category, action, userId } = body;
 
-    if (!postId || !category || !["upvote", "downvote"].includes(action)) {
+    if (
+      !postId ||
+      !category ||
+      !userId ||
+      !["upvote", "downvote"].includes(action)
+    ) {
       return NextResponse.json(
         { error: "Invalid parameters" },
         { status: 400 },
@@ -27,12 +32,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Modify the upvote count
-    if (action === "upvote") {
-      post.upvotes = (post.upvotes || 0) + 1;
-    } else {
-      post.upvotes = Math.max(0, (post.upvotes || 0) - 1);
+    // Initialize votes dictionary if it doesn't exist
+    if (!post.votes) {
+      post.votes = {};
     }
+
+    // Modify the upvote count for this specific user
+    const voteValue = action === "upvote" ? 1 : -1;
+
+    // If the user clicks the same vote again, it could toggle off, but for MVP let's just assert the state.
+    post.votes[userId] = voteValue;
+
+    // Recalculate total upvotes
+    post.upvotes = Object.values(post.votes).reduce(
+      (sum: number, val: any) => sum + (val as number),
+      0,
+    );
 
     // Save back to DB
     const { resource: updatedPost } = await communityContainer

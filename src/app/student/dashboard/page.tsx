@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -26,6 +33,7 @@ import {
   ArrowDownCircle,
   Search,
   ExternalLink,
+  Settings,
 } from "lucide-react";
 
 export default function StudentDashboard() {
@@ -71,6 +79,11 @@ export default function StudentDashboard() {
   const [editCommunityTitle, setEditCommunityTitle] = useState("");
   const [editCommunityContent, setEditCommunityContent] = useState("");
   const [editCommunityLink, setEditCommunityLink] = useState("");
+
+  // Profile State
+  const [profileName, setProfileName] = useState("");
+  const [profileSecondaryEmail, setProfileSecondaryEmail] = useState("");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Setup minute-tick clock for Time-Aware logic
   useEffect(() => {
@@ -154,8 +167,53 @@ export default function StudentDashboard() {
       });
   };
 
+  const fetchProfile = async () => {
+    if (!userId || !sectionId) return;
+    try {
+      const res = await fetch(
+        `/api/users/profile?email=${encodeURIComponent(userId)}&sectionId=${encodeURIComponent(sectionId)}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setProfileName(data.name || "");
+        setProfileSecondaryEmail(data.secondaryEmail || "");
+      }
+    } catch (err) {
+      console.error("Failed to fetch profile", err);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    try {
+      const res = await fetch("/api/users/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userId,
+          sectionId,
+          name: profileName,
+          secondaryEmail: profileSecondaryEmail,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Profile updated successfully!");
+        fetchProfile(); // refresh
+      } else {
+        toast.error("Failed to update profile.");
+      }
+    } catch (err) {
+      console.error("Failed to update profile", err);
+      toast.error("Network error updating profile.");
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
+    fetchProfile();
   }, [userId, sectionId]);
 
   useEffect(() => {
@@ -266,6 +324,8 @@ export default function StudentDashboard() {
           type: "personal",
           priority: priority,
           status: "pending",
+          sourceEventId:
+            activeTab === "events" ? title.replace("Attend: ", "") : undefined, // Quick hack to tie events to tasks
         }),
       });
       if (res.ok) {
@@ -315,11 +375,27 @@ export default function StudentDashboard() {
   };
 
   const handleVote = async (postId: string, action: "upvote" | "downvote") => {
+    if (!userId) {
+      toast.error("You must be logged in to vote.");
+      return;
+    }
+
+    const voteValue = action === "upvote" ? 1 : -1;
+
     // Optimistic Update
     setCommunityPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
-          return { ...p, upvotes: p.upvotes + (action === "upvote" ? 1 : -1) };
+          const newVotes = { ...(p.votes || {}), [userId]: voteValue };
+          const newTotal = Object.values(newVotes).reduce(
+            (sum: number, val: any) => sum + (val as number),
+            0,
+          );
+          return {
+            ...p,
+            votes: newVotes,
+            upvotes: newTotal,
+          };
         }
         return p;
       }),
@@ -333,11 +409,13 @@ export default function StudentDashboard() {
           postId,
           category: activeTab,
           action,
+          userId, // payload for the backend map
         }),
       });
       // We don't necessarily need to refetch immediately to preserve user view
     } catch (err) {
       console.error("Failed to vote:", err);
+      toast.error("Failed to register vote.");
       // Revert optimistic update on failure by simply refetching
       fetchCommunityPosts(activeTab, searchQuery);
     }
@@ -756,28 +834,49 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {post.category === "events" && (
-                <div className="pt-2">
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
-                    onClick={() => {
-                      setTitle(`Attend: ${post.title}`);
-                      setDeadline(
-                        new Date(Date.now() + 86400000 * 2).toISOString(),
-                      ); // Default 2 days
-                      setPriority("high");
-                      setActiveTab("tasks"); // Switch to task tab to finalize
-                      toast.success(
-                        "Drafted task event! Set your deadline and click 'Add' to lock it in.",
-                      );
-                    }}
-                  >
-                    <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
-                    Add to My Workload Schedule
-                  </Button>
-                </div>
-              )}
+              {post.category === "events" &&
+                (() => {
+                  const isScheduled = tasks.find(
+                    (t) => t.sourceEventId === post.title,
+                  );
+                  if (isScheduled) {
+                    return (
+                      <div className="pt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all font-medium"
+                          onClick={() => handleDeleteTask(isScheduled)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> Undo Schedule
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="pt-2">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
+                        onClick={() => {
+                          setTitle(`Attend: ${post.title}`);
+                          setDeadline(
+                            new Date(Date.now() + 86400000 * 2).toISOString(),
+                          ); // Default 2 days
+                          setPriority("high");
+                          setActiveTab("tasks"); // Switch to task tab to finalize
+                          toast.success(
+                            "Drafted task event! Set your deadline and click 'Add' to lock it in.",
+                          );
+                        }}
+                      >
+                        <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
+                        Add to My Workload Schedule
+                      </Button>
+                    </div>
+                  );
+                })()}
             </div>
           </div>
         ))}
@@ -796,13 +895,83 @@ export default function StudentDashboard() {
     <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 text-slate-100 p-4 md:p-8 dark">
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="flex justify-between items-end pb-6 border-b border-white/10">
-          <div>
-            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-              Student Hub
-            </h1>
-            <p className="text-slate-400 mt-1">
-              Manage your academic and personal workload intelligently.
-            </p>
+          <div className="flex items-center gap-4">
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="h-12 w-12 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-bold text-white shadow-lg hover:scale-105 transition-transform border-2 border-indigo-400">
+                  {(profileName || userId || "S")[0].toUpperCase()}
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-slate-900 border border-indigo-500/20 text-slate-100">
+                <DialogHeader>
+                  <DialogTitle className="text-xl flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-indigo-400" /> Profile
+                    Settings
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleUpdateProfile} className="space-y-6 mt-4">
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-slate-300 text-sm font-semibold mb-2 block">
+                        Domain Email (Primary)
+                      </Label>
+                      <Input
+                        disabled
+                        value={userId || ""}
+                        className="bg-black/30 border-white/10 text-slate-500 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-500 mt-2">
+                        Your primary domain email cannot be changed.
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-slate-300 text-sm font-semibold mb-2 block">
+                        Full Name
+                      </Label>
+                      <Input
+                        required
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        placeholder="e.g. John Doe"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-slate-300 text-sm font-semibold mb-2 block">
+                        Secondary Email (Alerts)
+                      </Label>
+                      <Input
+                        type="email"
+                        value={profileSecondaryEmail}
+                        onChange={(e) =>
+                          setProfileSecondaryEmail(e.target.value)
+                        }
+                        placeholder="e.g. personal@gmail.com"
+                        className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isUpdatingProfile}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white w-full"
+                  >
+                    {isUpdatingProfile
+                      ? "Saving Changes..."
+                      : "Save Preferences"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <div>
+              <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
+                Welcome back, {profileName || userId?.split("@")[0]}
+              </h1>
+              <p className="text-slate-400 mt-1">
+                Manage your academic and personal workload intelligently.
+              </p>
+            </div>
           </div>
           <Button
             variant="outline"
@@ -822,27 +991,27 @@ export default function StudentDashboard() {
           <TabsList className="grid w-full sm:w-[800px] grid-cols-4 bg-white/5 border border-white/10 p-1 rounded-xl mx-auto mb-8">
             <TabsTrigger
               value="tasks"
-              className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-medium"
+              className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
             >
               My Tasks
             </TabsTrigger>
             <TabsTrigger
               value="discussion"
-              className="rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium"
+              className="rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
             >
               Discussion
             </TabsTrigger>
             <TabsTrigger
               value="events"
-              className="rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-medium"
+              className="rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
             >
               Events
             </TabsTrigger>
             <TabsTrigger
               value="upskill"
-              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium text-xs sm:text-sm"
+              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis"
             >
-              Upskill & Free Resources
+              Resources
             </TabsTrigger>
           </TabsList>
 
