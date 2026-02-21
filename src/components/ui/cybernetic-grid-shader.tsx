@@ -102,15 +102,20 @@ const CyberneticGridShader = () => {
     const onResize = () => {
       const width = container.clientWidth;
       const height = container.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
       renderer.setSize(width, height);
-      uniforms.iResolution.value.set(width, height);
+      uniforms.iResolution.value.set(width * dpr, height * dpr);
     };
     window.addEventListener("resize", onResize);
     onResize(); // set initial size
 
     // 5) Mouse handler
     const onMouseMove = (e: MouseEvent) => {
-      uniforms.iMouse.value.set(e.clientX, container.clientHeight - e.clientY);
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const x = e.clientX - rect.left;
+      const y = container.clientHeight - (e.clientY - rect.top);
+      uniforms.iMouse.value.set(x * dpr, y * dpr);
     };
     window.addEventListener("mousemove", onMouseMove);
 
