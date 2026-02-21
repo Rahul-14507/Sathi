@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, isToday, isBefore, isAfter, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -34,6 +35,11 @@ import {
   Search,
   ExternalLink,
   Settings,
+  Sparkles,
+  Upload,
+  Bot,
+  Send,
+  MailWarning,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -46,7 +52,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function StudentDashboard() {
+function StudentDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sectionId = searchParams.get("sectionId");
@@ -97,6 +103,18 @@ export default function StudentDashboard() {
 
   const [deleteConfirmTask, setDeleteConfirmTask] = useState<any>(null);
   const [deleteConfirmPost, setDeleteConfirmPost] = useState<any>(null);
+
+  // AI Scanner State
+  const [isScanning, setIsScanning] = useState(false);
+  const [isScanningExtended, setIsScanningExtended] = useState(false);
+
+  // AI Discussion Assistant State
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiQuery, setAiQuery] = useState("");
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [aiMessages, setAiMessages] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
 
   // Setup minute-tick clock for Time-Aware logic
   useEffect(() => {
@@ -254,6 +272,135 @@ export default function StudentDashboard() {
       });
     } catch (err) {
       console.error("Failed to complete task:", err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (PNG/JPG) of your syllabus.");
+      return;
+    }
+
+    setIsScanningExtended(false);
+    setIsScanning(true);
+    toast.info("Analyzing syllabus with AI...");
+    const timeoutId = setTimeout(() => setIsScanningExtended(true), 5000);
+
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Image = reader.result;
+
+        const res = await fetch("/api/ai/scan-syllabus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            base64Image,
+            userId: userId,
+          }),
+        });
+
+        const data = await res.json();
+
+        clearTimeout(timeoutId);
+        setIsScanningExtended(false);
+
+        if (res.ok && data.success) {
+          toast.success(
+            `Magic Sync! Auto-added ${data.count} tasks from syllabus.`,
+          );
+          fetchTasks(); // Reload tasks immediately
+        } else {
+          toast.error(data.error || "Failed to scan syllabus.");
+        }
+        setIsScanning(false);
+      };
+
+      reader.onerror = () => {
+        clearTimeout(timeoutId);
+        setIsScanningExtended(false);
+        toast.error("Failed to read image file.");
+        setIsScanning(false);
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      setIsScanningExtended(false);
+      console.error(err);
+      toast.error("Error connecting to AI service.");
+      setIsScanning(false);
+    }
+  };
+
+  const handleAskAI = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiQuery.trim()) return;
+
+    const userQuery = aiQuery;
+    setAiQuery("");
+    setAiMessages((prev) => [...prev, { role: "user", content: userQuery }]);
+    setIsAiTyping(true);
+
+    try {
+      const res = await fetch("/api/ai/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: userQuery,
+          userId: userId,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAiMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.answer },
+        ]);
+        if (data.postDrafted) {
+          toast.success(
+            "AI couldn't find an exact match, but drafted a new post for you!",
+          );
+          fetchCommunityPosts("discussion", ""); // reload to show new drafted post
+          setActiveTab("discussion"); // force user to see it
+        }
+      } else {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.error || "Failed to get an answer.",
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error(err);
+      setAiMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Network error communicating with AI." },
+      ]);
+    } finally {
+      setIsAiTyping(false);
+    }
+  };
+
+  const handleTriggerCron = async () => {
+    toast.info("Triggering 24-hr reminder scan...");
+    try {
+      const res = await fetch("/api/cron/reminders");
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || "Cron executed successfully.");
+      } else {
+        toast.error(data.error || "Failed to trigger cron.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error triggering cron.");
     }
   };
 
@@ -992,6 +1139,20 @@ export default function StudentDashboard() {
                         : "Save Preferences"}
                     </Button>
                   </form>
+
+                  <div className="mt-8 border-t border-white/10 pt-6">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                      <MailWarning className="w-4 h-4 text-amber-500" /> Admin
+                      Tools
+                    </h3>
+                    <Button
+                      onClick={handleTriggerCron}
+                      variant="outline"
+                      className="w-full border-amber-500/30 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400"
+                    >
+                      Force Trigger Daily Email Reminders
+                    </Button>
+                  </div>
                 </DialogContent>
               </Dialog>
 
@@ -1090,10 +1251,51 @@ export default function StudentDashboard() {
               )}
 
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
-                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-indigo-100">
-                  <PlusCircle className="w-5 h-5 text-indigo-400" /> Quick Add
-                  Task
-                </h2>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold flex items-center gap-2 text-indigo-100">
+                    <PlusCircle className="w-5 h-5 text-indigo-400" /> Quick Add
+                    Task
+                  </h2>
+
+                  {/* AI Auto-Magic UI */}
+                  <div className="relative">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="syllabus-upload"
+                      disabled={isScanning}
+                    />
+                    <Label
+                      htmlFor="syllabus-upload"
+                      className={`cursor-pointer flex flex-col items-center justify-center min-w-[160px] gap-1 px-4 py-2 rounded-lg font-medium shadow-lg transition-all border border-purple-500/30
+                        ${isScanning ? "bg-purple-900/50 text-purple-300" : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white"}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isScanning ? (
+                          <>
+                            <Sparkles className="w-4 h-4 animate-spin-slow" />{" "}
+                            {isScanningExtended
+                              ? "Reading your syllabus... 🧠"
+                              : "Scanning..."}
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 text-amber-300" />{" "}
+                            Auto-Magic Sync
+                          </>
+                        )}
+                      </div>
+                      {isScanning && isScanningExtended && (
+                        <div className="w-full h-1 bg-purple-950 rounded-full overflow-hidden mt-1 relative">
+                          <div className="absolute inset-y-0 left-0 bg-purple-400 w-1/3 rounded-full animate-[ping_1s_ease-in-out_infinite]"></div>
+                        </div>
+                      )}
+                    </Label>
+                  </div>
+                </div>
+
                 <form
                   onSubmit={handlePostPersonalTask}
                   className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
@@ -1402,6 +1604,103 @@ export default function StudentDashboard() {
               {renderCommunityList()}
             </TabsContent>
           </Tabs>
+
+          {/* AI Assistant Floating Action Button (FAB) relative to Community Tabs */}
+          {activeTab !== "tasks" && (
+            <div className="fixed bottom-8 right-8 z-50">
+              <Button
+                onClick={() => setShowAIAssistant(true)}
+                className="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-500 shadow-xl shadow-indigo-500/30 flex items-center justify-center group"
+              >
+                <Bot className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+              </Button>
+            </div>
+          )}
+
+          {/* AI Assistant Chat Modal */}
+          <Dialog open={showAIAssistant} onOpenChange={setShowAIAssistant}>
+            <DialogContent className="bg-slate-900 border-white/10 sm:max-w-[500px] text-slate-100 p-0 overflow-hidden shadow-2xl">
+              <div className="bg-indigo-900/40 p-6 border-b border-white/5 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">
+                    Sathi AI Assistant
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-400">
+                    Ask a question about your courses or community.
+                  </DialogDescription>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                {aiMessages.length === 0 && !isAiTyping && (
+                  <div className="text-center py-8 text-slate-500">
+                    <Bot className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p>
+                      I can search past discussions, events, and resources to
+                      find answers or draft a new post for you.
+                    </p>
+                  </div>
+                )}
+
+                {aiMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {msg.role === "assistant" && (
+                      <div className="w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center flex-shrink-0 mt-1">
+                        <Bot className="w-4 h-4 text-indigo-400" />
+                      </div>
+                    )}
+                    <div
+                      className={`rounded-2xl p-4 text-sm whitespace-pre-wrap max-w-[80%] ${msg.role === "user" ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-white/5 border border-white/10 text-slate-300 rounded-tl-sm"}`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+
+                {isAiTyping && (
+                  <div className="flex gap-2">
+                    <div className="w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                      <Bot className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div className="bg-white/5 rounded-2xl rounded-tl-sm p-4 text-sm text-slate-300 prose prose-invert max-w-none flex items-center gap-1">
+                      <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <form
+                onSubmit={handleAskAI}
+                className="p-4 bg-black/40 border-t border-white/5"
+              >
+                <div className="relative">
+                  <Input
+                    disabled={isAiTyping}
+                    value={aiQuery}
+                    onChange={(e) => setAiQuery(e.target.value)}
+                    placeholder="Ask the AI Assistant..."
+                    className="pr-12 bg-white/5 border-white/10 text-white focus-visible:ring-indigo-500 rounded-xl h-12"
+                  />
+                  <Button
+                    type="submit"
+                    disabled={isAiTyping || !aiQuery.trim()}
+                    size="icon"
+                    className="absolute right-1.5 top-1.5 h-9 w-9 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
       <AlertDialog
@@ -1460,5 +1759,19 @@ export default function StudentDashboard() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+export default function StudentDashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#020817] flex items-center justify-center text-white">
+          Loading Sathi Student Hub...
+        </div>
+      }
+    >
+      <StudentDashboardContent />
+    </Suspense>
   );
 }

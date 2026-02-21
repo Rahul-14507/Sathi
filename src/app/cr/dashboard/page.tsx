@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function CRDashboard() {
+function CRDashboardContent() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [title, setTitle] = useState("");
@@ -482,5 +482,19 @@ export default function CRDashboard() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+export default function CRDashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#020817] flex items-center justify-center text-white">
+          Loading CR Dashboard...
+        </div>
+      }
+    >
+      <CRDashboardContent />
+    </Suspense>
   );
 }
