@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import {
   Calendar,
   CheckCircle2,
@@ -18,6 +19,9 @@ import {
   Edit2,
   Save,
   X,
+  MessageSquare,
+  Presentation,
+  TerminalSquare,
 } from "lucide-react";
 
 export default function StudentDashboard() {
@@ -41,6 +45,51 @@ export default function StudentDashboard() {
   const [editDescription, setEditDescription] = useState("");
   const [editDeadline, setEditDeadline] = useState("");
   const [editPriority, setEditPriority] = useState("medium");
+  const [lastSync, setLastSync] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Setup minute-tick clock for Time-Aware logic
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Time Aware Logic Constants
+  const currentHour = currentTime.getHours();
+  const isClassHours = currentHour >= 9 && currentHour <= 16; // 9 AM to 4:59 PM
+  const mockTimetable = [
+    { time: "09:00 AM", subject: "Data Structures", room: "Room 401" },
+    { time: "11:00 AM", subject: "Operating Systems", room: "Room 402" },
+    { time: "02:00 PM", subject: "Machine Learning", room: "Room 305" },
+  ];
+
+  // Polling for CR Announcements
+  useEffect(() => {
+    if (!sectionId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/notifications?sectionId=${encodeURIComponent(sectionId)}&lastSync=${lastSync}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.announcements && data.announcements.length > 0) {
+            data.announcements.forEach((a: any) => {
+              toast("Live CR Broadcast 📢", {
+                description: a.message,
+                duration: 10000,
+              });
+            });
+            const maxTimestamp = Math.max(
+              ...data.announcements.map((a: any) => a.timestamp),
+            );
+            setLastSync(maxTimestamp);
+          }
+        }
+      } catch (err) {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [sectionId, lastSync]);
 
   const fetchTasks = () => {
     if (!userId || !sectionId) {
@@ -422,154 +471,319 @@ export default function StudentDashboard() {
           </Button>
         </div>
 
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="grid w-full sm:w-[600px] grid-cols-3 bg-white/5 border border-white/10 p-1 rounded-xl">
+        <Tabs defaultValue="tasks" className="w-full">
+          <TabsList className="grid w-full sm:w-[800px] grid-cols-4 bg-white/5 border border-white/10 p-1 rounded-xl mx-auto mb-8">
             <TabsTrigger
-              value="all"
-              className="rounded-lg data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+              value="tasks"
+              className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-medium"
             >
-              All Tasks
+              My Tasks
             </TabsTrigger>
             <TabsTrigger
-              value="academic"
-              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+              value="discussion"
+              className="rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium"
             >
-              Academic
+              Discussion
             </TabsTrigger>
             <TabsTrigger
-              value="personal"
-              className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+              value="events"
+              className="rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-medium"
             >
-              Personal
+              Campus Events
+            </TabsTrigger>
+            <TabsTrigger
+              value="upskill"
+              className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white font-medium"
+            >
+              Upskill
             </TabsTrigger>
           </TabsList>
 
-          {["all", "academic", "personal"].map((type) => {
-            const currentList =
-              type === "academic"
-                ? academicTasks
-                : type === "personal"
-                  ? personalTasks
-                  : allTasks;
-
-            const { upcoming, dueToday, overdue, completed } =
-              categorizeTasks(currentList);
-
-            return (
-              <TabsContent
-                key={type}
-                value={type}
-                className="mt-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
-              >
-                {/* Personal Add Task Form (Only in Personal Tab) */}
-                {type === "personal" && (
-                  <div className="mb-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl">
-                    <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-indigo-100">
-                      <PlusCircle className="w-5 h-5 text-indigo-400" /> Add
-                      Personal Task
-                    </h2>
-                    <form
-                      onSubmit={handlePostPersonalTask}
-                      className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
+          {/* MAIN TASKS TAB WITH TIME-AWARE DASHBOARD VIEWER */}
+          <TabsContent
+            value="tasks"
+            className="space-y-8 animate-in fade-in duration-500"
+          >
+            {isClassHours && (
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+                <h2 className="text-xl font-bold text-indigo-400 mb-4 flex items-center gap-2">
+                  <Clock className="w-5 h-5" /> Today's Timetable (Live)
+                </h2>
+                <div className="space-y-3">
+                  {mockTimetable.map((slot, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center p-4 rounded-2xl bg-black/20 border border-white/5 hover:bg-black/40 transition-colors"
                     >
-                      <div className="space-y-2 md:col-span-1">
-                        <Label className="text-slate-300">Title</Label>
-                        <Input
-                          required
-                          value={title}
-                          onChange={(e) => setTitle(e.target.value)}
-                          className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-1">
-                        <Label className="text-slate-300">
-                          Desc{" "}
-                          <span className="text-slate-500 text-xs">(opt)</span>
-                        </Label>
-                        <Input
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-1">
-                        <Label className="text-slate-300">Deadline</Label>
-                        <Input
-                          required
-                          type="datetime-local"
-                          value={deadline}
-                          onChange={(e) => setDeadline(e.target.value)}
-                          className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500 [color-scheme:dark]"
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-1">
-                        <Label className="text-slate-300">Priority</Label>
-                        <select
-                          value={priority}
-                          onChange={(e) => setPriority(e.target.value)}
-                          className="w-full bg-black/30 border border-white/20 text-slate-100 focus-visible:ring-indigo-500 h-10 rounded-md px-3 outline-none"
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                        </select>
-                      </div>
-                      <Button
-                        type="submit"
-                        disabled={posting}
-                        className="md:col-span-1 bg-indigo-600 hover:bg-indigo-500 h-10 w-full text-white font-medium shadow-[0_0_15px_rgba(79,70,229,0.2)]"
-                      >
-                        {posting ? "Adding..." : "Add to Schedule"}
-                      </Button>
-                    </form>
-                  </div>
-                )}
+                      <span className="font-semibold text-slate-200">
+                        {slot.time}
+                      </span>
+                      <span className="text-slate-300 font-medium">
+                        {slot.subject}
+                      </span>
+                      <span className="text-indigo-300 text-sm font-mono bg-indigo-500/10 px-3 py-1 rounded-md border border-indigo-500/20">
+                        {slot.room}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                {/* Overdue Section */}
-                {overdue.length > 0 && (
-                  <section>
-                    <h2 className="text-xl font-bold text-red-400 flex items-center gap-2 mb-4">
-                      <AlertCircle className="w-5 h-5" /> Overdue
-                    </h2>
-                    {renderTaskList(overdue, "No overdue tasks.", true)}
-                  </section>
-                )}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl mb-8">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-indigo-100">
+                <PlusCircle className="w-5 h-5 text-indigo-400" /> Quick Add
+                Task
+              </h2>
+              <form
+                onSubmit={handlePostPersonalTask}
+                className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
+              >
+                <div className="space-y-2 md:col-span-1">
+                  <Label className="text-slate-300">Title</Label>
+                  <Input
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-1">
+                  <Label className="text-slate-300">
+                    Desc <span className="text-slate-500 text-xs">(opt)</span>
+                  </Label>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-1">
+                  <Label className="text-slate-300">Deadline</Label>
+                  <Input
+                    required
+                    type="datetime-local"
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="bg-black/30 border-white/20 text-slate-100 focus-visible:ring-indigo-500 [color-scheme:dark]"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-1">
+                  <Label className="text-slate-300">Priority</Label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full bg-black/30 border border-white/20 text-slate-100 focus-visible:ring-indigo-500 h-10 rounded-md px-3 outline-none"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={posting}
+                  className="md:col-span-1 bg-indigo-600 hover:bg-indigo-500 h-10 w-full text-white font-medium shadow-[0_0_15px_rgba(79,70,229,0.2)]"
+                >
+                  {posting ? "Adding..." : "Add"}
+                </Button>
+              </form>
+            </div>
 
-                {/* Due Today Section */}
-                {dueToday.length > 0 && (
-                  <section>
-                    <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-4">
-                      <Calendar className="w-5 h-5" /> Due Today
-                    </h2>
-                    {renderTaskList(dueToday, "You're clear for today!")}
-                  </section>
-                )}
+            <Tabs defaultValue="all" className="w-full">
+              <TabsList className="grid w-full sm:w-[600px] grid-cols-3 bg-white/5 border border-white/10 p-1 rounded-xl">
+                <TabsTrigger
+                  value="all"
+                  className="rounded-lg data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+                >
+                  All Workload
+                </TabsTrigger>
+                <TabsTrigger
+                  value="academic"
+                  className="rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+                >
+                  Academic
+                </TabsTrigger>
+                <TabsTrigger
+                  value="personal"
+                  className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+                >
+                  Personal
+                </TabsTrigger>
+              </TabsList>
 
-                {/* Upcoming Section */}
-                <section>
-                  <h2 className="text-xl font-bold text-slate-300 flex items-center gap-2 mb-4">
-                    <Clock className="w-5 h-5" /> Upcoming
-                  </h2>
-                  {renderTaskList(upcoming, "Nothing on the horizon.")}
-                </section>
+              {["all", "academic", "personal"].map((type) => {
+                const currentList =
+                  type === "academic"
+                    ? academicTasks
+                    : type === "personal"
+                      ? personalTasks
+                      : allTasks;
 
-                {/* Completed Section */}
-                {completed.length > 0 && (
-                  <section>
-                    <h2 className="text-xl font-bold text-emerald-500/70 flex items-center gap-2 mb-4">
-                      <CheckCircle2 className="w-5 h-5" /> Completed
-                    </h2>
-                    {renderTaskList(
-                      completed,
-                      "No completed tasks.",
-                      false,
-                      true,
+                const { upcoming, dueToday, overdue, completed } =
+                  categorizeTasks(currentList);
+
+                return (
+                  <TabsContent
+                    key={type}
+                    value={type}
+                    className="mt-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                  >
+                    {overdue.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-bold text-red-400 flex items-center gap-2 mb-4">
+                          <AlertCircle className="w-5 h-5" /> Overdue
+                        </h2>
+                        {renderTaskList(overdue, "No overdue tasks.", true)}
+                      </section>
                     )}
-                  </section>
-                )}
-              </TabsContent>
-            );
-          })}
+                    {dueToday.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-4">
+                          <Calendar className="w-5 h-5" /> Due Today
+                        </h2>
+                        {renderTaskList(dueToday, "You're clear for today!")}
+                      </section>
+                    )}
+                    <section>
+                      <h2 className="text-xl font-bold text-slate-300 flex items-center gap-2 mb-4">
+                        <Clock className="w-5 h-5" /> Upcoming
+                      </h2>
+                      {renderTaskList(upcoming, "Nothing on the horizon.")}
+                    </section>
+                    {completed.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-bold text-emerald-500/70 flex items-center gap-2 mb-4">
+                          <CheckCircle2 className="w-5 h-5" /> Completed
+                        </h2>
+                        {renderTaskList(
+                          completed,
+                          "No completed tasks.",
+                          false,
+                          true,
+                        )}
+                      </section>
+                    )}
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          </TabsContent>
+
+          {/* DISCUSSION DISCOVERY TAB */}
+          <TabsContent
+            value="discussion"
+            className="space-y-8 animate-in fade-in duration-500"
+          >
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-12 text-center text-slate-400 shadow-2xl">
+              <MessageSquare className="w-16 h-16 mx-auto mb-6 text-purple-400 opacity-50" />
+              <h3 className="text-2xl font-semibold text-slate-200 mb-3">
+                Community Discussions
+              </h3>
+              <p className="max-w-md mx-auto mb-8">
+                Ask questions to your class section, share study notes, and
+                collaborate with your peers in real-time.
+              </p>
+              <Button className="bg-purple-600 hover:bg-purple-500 text-lg h-12 px-8">
+                Start a Discussion
+              </Button>
+            </div>
+          </TabsContent>
+
+          {/* EVENTS HUB TAB */}
+          <TabsContent
+            value="events"
+            className="space-y-6 animate-in fade-in duration-500"
+          >
+            <h2 className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
+              <Presentation className="w-6 h-6" /> Upcoming Campus Events &
+              Hackathons
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="p-6 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col">
+                <div className="flex-1 space-y-3">
+                  <h4 className="font-bold text-xl text-slate-100">
+                    Spring AI Hackathon 2026
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    Join the 48-hour sprint. Build AI agents and win up to $5000
+                    in prizes!
+                  </p>
+                  <p className="text-emerald-300 text-xs font-mono bg-emerald-500/10 inline-block px-2 py-1 rounded">
+                    Main Auditorium
+                  </p>
+                </div>
+                <Button
+                  className="w-full mt-6 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
+                  onClick={() => {
+                    setTitle("Attend Spring AI Hackathon");
+                    setDeadline(
+                      new Date(Date.now() + 86400000 * 2).toISOString(),
+                    ); // 2 days from now
+                    setPriority("high");
+                    // Trigger toast locally
+                    toast.success(
+                      "Prepared hackathon event! Click 'Add' on your task form to lock it into your schedule.",
+                    );
+                  }}
+                >
+                  <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
+                  Prepare to Schedule
+                </Button>
+              </div>
+
+              <div className="p-6 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col">
+                <div className="flex-1 space-y-3">
+                  <h4 className="font-bold text-xl text-slate-100">
+                    Cloud Computing Workshop
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    Learn the absolute basics of deploying applications using
+                    modern cloud infrastructure like Azure.
+                  </p>
+                  <p className="text-blue-300 text-xs font-mono bg-blue-500/10 inline-block px-2 py-1 rounded">
+                    CS Lab 3
+                  </p>
+                </div>
+                <Button
+                  className="w-full mt-6 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white transition-all group"
+                  onClick={() => {
+                    setTitle("Attend Cloud Workshop");
+                    setDeadline(
+                      new Date(Date.now() + 86400000 * 4).toISOString(),
+                    );
+                    setPriority("medium");
+                    toast.success(
+                      "Prepared workshop event! Click 'Add' on your task form to lock it into your schedule.",
+                    );
+                  }}
+                >
+                  <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />{" "}
+                  Prepare to Schedule
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ROADMAPS TAB */}
+          <TabsContent
+            value="upskill"
+            className="space-y-8 animate-in fade-in duration-500"
+          >
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-12 text-center text-slate-400 shadow-2xl">
+              <TerminalSquare className="w-16 h-16 mx-auto mb-6 text-blue-400 opacity-50" />
+              <h3 className="text-2xl font-semibold text-slate-200 mb-3">
+                Upskill & Micro-Certifications
+              </h3>
+              <p className="max-w-md mx-auto mb-8">
+                Follow curated, dynamically generated learning roadmaps based on
+                your current coursework to accelerate your career.
+              </p>
+              <Button className="bg-blue-600 hover:bg-blue-500 text-lg h-12 px-8">
+                Explore Roadmaps
+              </Button>
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
     </main>

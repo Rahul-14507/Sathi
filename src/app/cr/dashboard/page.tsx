@@ -15,6 +15,8 @@ export default function CRDashboard() {
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const sectionId = searchParams.get("sectionId");
@@ -92,6 +94,33 @@ export default function CRDashboard() {
     }
   };
 
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsBroadcasting(true);
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sectionId,
+          message: broadcastMsg,
+          authorId: "CR/IC",
+        }),
+      });
+      if (res.ok) {
+        setBroadcastMsg("");
+        alert("Broadcast sent successfully!");
+      } else {
+        alert("Failed to send broadcast");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error broadcasting");
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
+
   const handlePostTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -145,6 +174,29 @@ export default function CRDashboard() {
           >
             Logout
           </Button>
+        </div>
+
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+          <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-400" /> Broadcast Live
+            Announcement
+          </h2>
+          <form onSubmit={handleBroadcast} className="flex gap-4">
+            <Input
+              value={broadcastMsg}
+              onChange={(e) => setBroadcastMsg(e.target.value)}
+              required
+              placeholder="e.g. Room changed to 402 for Data Structures!"
+              className="bg-black/30 border-white/20 text-white h-12 flex-1"
+            />
+            <Button
+              type="submit"
+              disabled={isBroadcasting}
+              className="h-12 bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.2)] px-8"
+            >
+              {isBroadcasting ? "Sending..." : "Notify Section"}
+            </Button>
+          </form>
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
