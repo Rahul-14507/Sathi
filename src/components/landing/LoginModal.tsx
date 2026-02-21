@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -93,6 +94,49 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
     } catch (err) {
       console.error(err);
       setErrorMsg("Network error requesting OTP.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      if (role === "ADMIN") return;
+
+      const mappedRole = role === "STUDENT" ? "student" : "cr";
+
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credential: credentialResponse.credential,
+          role: mappedRole,
+          sectionId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        toast.success("Google Authentication successful!");
+        onClose();
+        if (mappedRole === "student") {
+          // We use the email from Google (returned inside data.domainId)
+          router.push(
+            `/student/dashboard?sectionId=${sectionId}&userId=${data.domainId}`,
+          );
+        } else if (mappedRole === "cr") {
+          router.push(`/cr/dashboard?sectionId=${sectionId}`);
+        }
+      } else {
+        setErrorMsg(data.error || "Google Login failed.");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Network error during Google validation.");
     } finally {
       setIsLoading(false);
     }
@@ -249,10 +293,36 @@ export function LoginModal({ isOpen, onClose, role }: LoginModalProps) {
                       value={domainId}
                       onChange={(e) => setDomainId(e.target.value)}
                       required
-                      autoFocus
+                      autoFocus={role === "ADMIN"}
                       className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary h-12 rounded-xl px-4"
                     />
                   </motion.div>
+
+                  {role !== "ADMIN" && (
+                    <div className="pt-2 flex flex-col items-center">
+                      <div className="relative w-full flex items-center justify-center mb-4">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t border-border" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-card px-2 text-muted-foreground font-mono">
+                            Or continue with
+                          </span>
+                        </div>
+                      </div>
+
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() =>
+                          setErrorMsg("Google Sign-in popup closed or failed")
+                        }
+                        theme="filled_black"
+                        text="continue_with"
+                        width={300}
+                        shape="pill"
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
