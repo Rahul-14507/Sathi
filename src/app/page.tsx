@@ -26,6 +26,14 @@ export default function LandingPage() {
               Enter as CR/IC
             </Button>
           </Link>
+          <Link href="/auth?role=management" className="w-full">
+            <Button
+              variant="ghost"
+              className="w-full text-lg font-semibold h-14 bg-transparent text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 transition-all rounded-xl"
+            >
+              Management Portal
+            </Button>
+          </Link>
         </div>
       </div>
     </main>

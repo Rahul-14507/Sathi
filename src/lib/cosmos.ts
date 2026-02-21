@@ -10,6 +10,7 @@ const client = new CosmosClient({ endpoint, key });
 
 export const database = client.database("SathiDB");
 export const tasksContainer = database.container("Tasks");
+export const usersContainer = database.container("Users");
 
 export interface TaskItem {
   id: string;
@@ -32,7 +33,11 @@ export async function initDB() {
       id: "Tasks",
       partitionKey: { paths: ["/userId"] },
     });
-    console.log("✅ Cosmos DB initialized: SathiDB / Tasks");
+    await db.containers.createIfNotExists({
+      id: "Users",
+      partitionKey: { paths: ["/sectionId"] },
+    });
+    console.log("✅ Cosmos DB initialized: SathiDB / Tasks & Users");
   } catch (err) {
     console.error("❌ Failed to initialize Cosmos DB:", err);
   }

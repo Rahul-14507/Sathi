@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,58 +13,156 @@ function AuthForm() {
 
   const [domainId, setDomainId] = useState("");
   const [otp, setOtp] = useState("");
+  const [sectionId, setSectionId] = useState("");
+  const [sections, setSections] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    // Only fetch sections if they are a student or CR. Management doesn't need sections.
+    if (role !== "management") {
+      fetch("/api/sections")
+        .then((res) => res.json())
+        .then((data) => {
+          setSections(Array.isArray(data) ? data : []);
+          if (data.length > 0) {
+            setSectionId(data[0].sectionId);
+          }
+        })
+        .catch((err) => console.error(err));
+    }
+  }, [role]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate setting session
-    if (role === "student") {
-      router.push("/student/dashboard");
-    } else {
-      router.push("/cr/dashboard");
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domainId: domainId.trim(),
+          otp,
+          role,
+          sectionId: role === "management" ? "NONE" : sectionId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (role === "student") {
+          router.push(
+            `/student/dashboard?sectionId=${sectionId}&userId=${domainId.trim()}`,
+          );
+        } else if (role === "cr") {
+          router.push(`/cr/dashboard?sectionId=${sectionId}`);
+        } else if (role === "management") {
+          router.push("/management/dashboard");
+        }
+      } else {
+        setErrorMsg(data.error || "Login Failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Network error during login.");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const roleTitle =
+    {
+      student: "Student Portal",
+      cr: "CR/IC Portal",
+      management: "Management Secure Portal",
+    }[role as string] || "Login Portal";
 
   return (
     <form onSubmit={handleLogin} className="space-y-6">
       <h2 className="text-3xl font-bold mb-8 text-center text-white">
-        {role === "student" ? "Student Portal" : "CR/IC Portal"}
+        {roleTitle}
       </h2>
+
+      {errorMsg && (
+        <div className="bg-red-500/20 border border-red-500/50 text-red-200 p-3 rounded-lg text-sm text-center">
+          {errorMsg}
+        </div>
+      )}
+
+      {role !== "management" && (
+        <div className="space-y-3">
+          <Label
+            htmlFor="section"
+            className="text-slate-300 text-sm font-medium"
+          >
+            Class Section
+          </Label>
+          <select
+            id="section"
+            value={sectionId}
+            onChange={(e) => setSectionId(e.target.value)}
+            className="w-full bg-black/30 border border-white/20 text-white h-12 rounded-xl px-4 outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            {sections.length === 0 && (
+              <option value="">Loading Sections...</option>
+            )}
+            {sections.map((sec) => (
+              <option key={sec.id} value={sec.sectionId}>
+                {sec.sectionName} ({sec.sectionId})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="space-y-3">
         <Label
           htmlFor="domainId"
           className="text-slate-300 text-sm font-medium"
         >
-          Institutional Domain ID
+          {role === "management"
+            ? "Admin Master Username"
+            : "Institutional Domain ID"}
         </Label>
         <Input
           id="domainId"
-          placeholder="e.g. jdoe@institution.edu"
+          placeholder={
+            role === "management" ? "admin" : "e.g. jdoe@institution.edu"
+          }
           value={domainId}
           onChange={(e) => setDomainId(e.target.value)}
           required
           className="bg-black/30 border-white/20 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-12 rounded-xl px-4"
         />
       </div>
+
       <div className="space-y-3">
         <Label htmlFor="otp" className="text-slate-300 text-sm font-medium">
-          One-Time Password (OTP)
+          {role === "management"
+            ? "Master Password"
+            : "One-Time Password (OTP)"}
         </Label>
         <Input
           id="otp"
           type="password"
-          placeholder="Enter 1234 for mock"
+          placeholder={role === "management" ? "admin" : "Enter 1234 for mock"}
           value={otp}
           onChange={(e) => setOtp(e.target.value)}
           required
           className="bg-black/30 border-white/20 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-12 rounded-xl px-4"
         />
       </div>
+
       <Button
         type="submit"
+        disabled={isLoading || (role !== "management" && sections.length === 0)}
         className="w-full bg-blue-600 hover:bg-blue-500 h-14 rounded-xl mt-6 text-lg font-semibold shadow-lg shadow-blue-900/40"
       >
-        Verify & Login
+        {isLoading ? "Authenticating..." : "Verify & Login"}
       </Button>
     </form>
   );

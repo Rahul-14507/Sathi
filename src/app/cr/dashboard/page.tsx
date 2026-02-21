@@ -1,17 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { format } from "date-fns";
+import { Clock, Users, Trash2, Edit2, Save, X } from "lucide-react";
 
 export default function CRDashboard() {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sectionId = searchParams.get("sectionId");
+
+  // Edit State
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDeadline, setEditDeadline] = useState("");
+
+  const fetchTasks = () => {
+    if (!sectionId) {
+      router.push("/auth?role=cr");
+      return;
+    }
+    fetch(`/api/tasks?sectionId=${encodeURIComponent(sectionId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTasks(Array.isArray(data) ? data : []);
+        setTasksLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setTasksLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, [sectionId]);
+
+  const handleDeleteTask = async (task: any) => {
+    if (
+      !confirm("Are you sure you want to completely delete this global task?")
+    )
+      return;
+    try {
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      await fetch(`/api/tasks?id=${task.id}&userId=${task.userId}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const startEdit = (task: any) => {
+    setEditTaskId(task.id);
+    setEditTitle(task.title);
+    setEditDescription(task.description || "");
+    setEditDeadline(task.deadline);
+  };
+
+  const cancelEdit = () => {
+    setEditTaskId(null);
+  };
+
+  const saveEdit = async (task: any) => {
+    try {
+      const updated = {
+        ...task,
+        title: editTitle,
+        description: editDescription,
+        deadline: new Date(editDeadline).toISOString(),
+      };
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      setEditTaskId(null);
+      await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handlePostTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +100,7 @@ export default function CRDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: "global",
+          userId: `section:${sectionId}`,
           title,
           description,
           deadline: new Date(deadline).toISOString(),
@@ -35,6 +114,7 @@ export default function CRDashboard() {
         setDescription("");
         setDeadline("");
         alert("Global Academic Task Posted Successfully!");
+        fetchTasks();
       } else {
         alert("Failed to post task. Are your Cosmos DB details configured?");
       }
@@ -55,7 +135,7 @@ export default function CRDashboard() {
               CR/IC Portal
             </h1>
             <p className="text-slate-400">
-              Post academic tasks for all students
+              Post academic tasks for Section {sectionId} students
             </p>
           </div>
           <Button
@@ -68,7 +148,9 @@ export default function CRDashboard() {
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
-          <h2 className="text-xl font-semibold mb-6">Post New Global Task</h2>
+          <h2 className="text-xl font-semibold mb-6">
+            Post New Task to Section {sectionId}
+          </h2>
           <form onSubmit={handlePostTask} className="space-y-6">
             <div className="space-y-3">
               <Label htmlFor="title" className="text-slate-300">
@@ -111,9 +193,122 @@ export default function CRDashboard() {
               disabled={isLoading}
               className="w-full h-14 bg-emerald-600 hover:bg-emerald-500 text-lg shadow-[0_0_20px_rgba(16,185,129,0.2)]"
             >
-              {isLoading ? "Posting..." : "Post Task to All Students"}
+              {isLoading ? "Posting..." : `Post Task to Section ${sectionId}`}
             </Button>
           </form>
+        </div>
+
+        {/* Section Tasks History */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl mt-8">
+          <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <Users className="w-5 h-5 text-emerald-400" /> Currently Assigned to
+            Section {sectionId}
+          </h2>
+
+          {tasksLoading ? (
+            <p className="text-slate-400 italic">Loading tasks...</p>
+          ) : tasks.length === 0 ? (
+            <p className="text-slate-400 italic">
+              No academic tasks have been assigned to Section {sectionId} yet.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {tasks.map((task) => {
+                const isEditing = editTaskId === task.id;
+
+                if (isEditing) {
+                  return (
+                    <div
+                      key={task.id}
+                      className="p-5 rounded-2xl bg-slate-900/50 border border-slate-700/50 shadow-xl space-y-4"
+                    >
+                      <Input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="bg-black/30 border-white/20 text-white"
+                        placeholder="Title"
+                      />
+                      <Input
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        className="bg-black/30 border-white/20 text-white"
+                        placeholder="Description"
+                      />
+                      <Input
+                        type="datetime-local"
+                        value={editDeadline.slice(0, 16)}
+                        onChange={(e) => setEditDeadline(e.target.value)}
+                        className="bg-black/30 border-white/20 text-white [color-scheme:dark]"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="ghost"
+                          onClick={cancelEdit}
+                          className="text-slate-400 hover:text-white"
+                        >
+                          <X className="w-4 h-4 mr-2" /> Cancel
+                        </Button>
+                        <Button
+                          onClick={() => saveEdit(task)}
+                          className="bg-emerald-600 hover:bg-emerald-500"
+                        >
+                          <Save className="w-4 h-4 mr-2" /> Save
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={task.id}
+                    className="p-5 rounded-2xl bg-slate-900/50 border border-slate-700/50 flex justify-between items-start"
+                  >
+                    <div className="flex-1 pr-4">
+                      <h3 className="font-semibold text-lg text-slate-100 flex items-center gap-2">
+                        {task.title}
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/20 text-emerald-300 relative top-[-1px]">
+                          Sec {sectionId}
+                        </span>
+                      </h3>
+                      {task.description && (
+                        <p className="text-slate-400 text-sm mt-1">
+                          {task.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1 text-xs text-slate-500 mt-3 font-medium">
+                        <Clock className="w-4 h-4" />
+                        {task.deadline &&
+                        !isNaN(new Date(task.deadline).getTime())
+                          ? format(new Date(task.deadline), "PPp")
+                          : "No deadline"}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEdit(task)}
+                        className="hover:bg-blue-500/20 hover:text-blue-400 rounded-full text-slate-500 border border-slate-700 h-8 w-8"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteTask(task)}
+                        className="hover:bg-red-500/20 hover:text-red-400 rounded-full text-slate-500 border border-slate-700 h-8 w-8"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </main>
