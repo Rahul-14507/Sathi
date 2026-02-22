@@ -5,11 +5,18 @@ const key =
   process.env.COSMOS_KEY ||
   "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 
+import * as https from "https";
+
 // Use a global variable to preserve the CosmosClient across hot-reloads in dev
 const globalForCosmos = global as unknown as { cosmosClient: CosmosClient };
 
 const client =
-  globalForCosmos.cosmosClient || new CosmosClient({ endpoint, key });
+  globalForCosmos.cosmosClient ||
+  new CosmosClient({
+    endpoint,
+    key,
+    agent: new https.Agent({ rejectUnauthorized: false }), // Fixes local clock skew/SSL certificate authorization errors
+  });
 
 if (process.env.NODE_ENV !== "production")
   globalForCosmos.cosmosClient = client;
