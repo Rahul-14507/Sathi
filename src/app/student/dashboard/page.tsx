@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useRef } from "react";
+import confetti from "canvas-confetti";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, isToday, isBefore, isAfter, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -261,6 +262,15 @@ function StudentDashboardContent() {
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, status: "completed" } : t)),
       );
+
+      // 🎉 Confetti celebration!
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.7 },
+        colors: ["#6366f1", "#8b5cf6", "#a78bfa", "#10b981", "#34d399"],
+      });
+
       await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1058,10 +1068,59 @@ function StudentDashboardContent() {
     );
   };
 
+  // Stats computation
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(
+    (t: any) => t.status === "completed",
+  ).length;
+  const overdueTasks = tasks.filter(
+    (t: any) =>
+      t.status === "pending" &&
+      isBefore(new Date(t.deadline), startOfDay(new Date())),
+  ).length;
+  const completionRate =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white dark">
-        Loading Dashboard...
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 text-slate-100 p-4 md:p-8 dark">
+        <div className="max-w-5xl mx-auto space-y-8 animate-pulse">
+          {/* Header Skeleton */}
+          <div className="flex justify-between items-end pb-6 border-b border-white/10">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-white/10" />
+              <div>
+                <div className="h-8 w-64 bg-white/10 rounded-lg mb-2" />
+                <div className="h-4 w-48 bg-white/5 rounded-lg" />
+              </div>
+            </div>
+            <div className="h-10 w-24 bg-white/10 rounded-lg" />
+          </div>
+
+          {/* Stats Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-24 rounded-2xl bg-white/5 border border-white/10"
+              />
+            ))}
+          </div>
+
+          {/* Tabs Skeleton */}
+          <div className="h-12 w-[600px] bg-white/5 rounded-xl mx-auto" />
+
+          {/* Cards Skeleton */}
+          <div className="h-40 rounded-3xl bg-white/5 border border-white/10" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-28 rounded-2xl bg-white/5 border border-white/10"
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
 
@@ -1172,6 +1231,42 @@ function StudentDashboardContent() {
             >
               Sign Out
             </Button>
+          </div>
+
+          {/* 📊 Stats Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 text-center">
+              <p className="text-3xl font-bold text-indigo-400">{totalTasks}</p>
+              <p className="text-xs text-slate-400 mt-1 font-medium">
+                Total Tasks
+              </p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 text-center">
+              <p className="text-3xl font-bold text-emerald-400">
+                {completedTasks}
+              </p>
+              <p className="text-xs text-slate-400 mt-1 font-medium">
+                Completed
+              </p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 text-center">
+              <p className="text-3xl font-bold text-red-400">{overdueTasks}</p>
+              <p className="text-xs text-slate-400 mt-1 font-medium">Overdue</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 text-center relative overflow-hidden">
+              <p className="text-3xl font-bold text-amber-400">
+                {completionRate}%
+              </p>
+              <p className="text-xs text-slate-400 mt-1 font-medium">
+                Completion Rate
+              </p>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-800">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-700"
+                  style={{ width: `${completionRate}%` }}
+                />
+              </div>
+            </div>
           </div>
 
           <Tabs

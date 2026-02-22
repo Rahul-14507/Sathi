@@ -102,8 +102,8 @@ export function Hero() {
             <span className="text-primary"> life in group chats.</span>
           </h1>
           <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-            Tasks, timetables, discussions, hackathons — AcademicSync keeps
-            everything organized and synced across your entire batch.
+            Tasks, timetables, discussions, hackathons — Sathi keeps everything
+            organized and synced across your entire batch.
             <span className="text-foreground font-medium"> Automatically.</span>
           </p>
         </motion.div>

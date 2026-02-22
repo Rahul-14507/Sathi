@@ -1,5 +1,13 @@
 import { motion } from "framer-motion";
-import { Calendar, MessageCircle, Trophy, Bot, CheckCheck, Clock, Zap } from "lucide-react";
+import {
+  Calendar,
+  MessageCircle,
+  Trophy,
+  Bot,
+  CheckCheck,
+  Clock,
+  Zap,
+} from "lucide-react";
 
 const features = [
   {
@@ -39,8 +47,8 @@ const features = [
     color: "text-violet-500",
     colorBg: "bg-violet-500/10",
     description:
-      "Runs locally. Learns from your batch's discussions. Answers questions your syllabus doesn't cover — without phoning home to OpenAI.",
-    tags: ["Local LLM", "Community-trained", "Privacy-first"],
+      "Upload a syllabus image and let GPT-4o Vision auto-extract every deadline. Ask the AI chatbot anything — it searches community posts via RAG to give you real answers.",
+    tags: ["GPT-4o Vision", "RAG Chatbot", "Auto-Sync"],
   },
 ];
 
@@ -78,7 +86,10 @@ export function Features() {
             className="flex flex-col gap-2"
           >
             {highlights.map((h) => (
-              <div key={h.text} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div
+                key={h.text}
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
                 <h.icon className="w-4 h-4 text-primary shrink-0" />
                 {h.text}
               </div>
@@ -106,7 +117,9 @@ export function Features() {
 
                 {/* Title + icon */}
                 <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-lg ${feature.colorBg} flex items-center justify-center shrink-0 mt-0.5`}>
+                  <div
+                    className={`w-9 h-9 rounded-lg ${feature.colorBg} flex items-center justify-center shrink-0 mt-0.5`}
+                  >
                     <feature.icon className={`w-4.5 h-4.5 ${feature.color}`} />
                   </div>
                   <div>
