@@ -1,7 +1,11 @@
 <div align="center">
-  <img src="public/globe.svg" alt="Sathi Logo" width="120" />
+  <img src="public/Sathi.png" alt="Sathi Logo" width="120" />
   <h1>Sathi</h1>
   <p><em>The Intelligent Student Task Hub & Academic Community</em></p>
+
+[📺 Watch Demo Video](https://drive.google.com/file/d/1xmmnUXk8VlmOj490LXxm-0Msix3qEVVG/view)
+
+  <br />
 
 [![Next.js](https://img.shields.io/badge/built%20with-Next.js%2014-black)](https://nextjs.org/)
 [![Azure](https://img.shields.io/badge/database-Azure%20Cosmos%20DB-0078D4)](https://azure.microsoft.com/)
